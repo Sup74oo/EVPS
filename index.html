@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ÉlecRoute">
+<meta name="theme-color" content="#f2f2f7" id="themeColor">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>ÉlecRoute</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --bg:#f2f2f7; --card:#ffffff; --card2:#f9f9fb; --text:#1d1d1f; --text2:#6e6e73; --text3:#aeaeb2;
+  --sep:rgba(60,60,67,.18); --blue:#007aff; --green:#34c759; --red:#ff3b30; --orange:#ff9500;
+  --fill:rgba(118,118,128,.12); --glass:rgba(255,255,255,.82); --shadow:0 8px 30px rgba(0,0,0,.12);
+  --route2:#a1a1aa; --navbg:#1c3d2c;
+}
+html.dark{
+  --bg:#000000; --card:#1c1c1e; --card2:#2c2c2e; --text:#f5f5f7; --text2:#98989f; --text3:#636366;
+  --sep:rgba(84,84,88,.6); --blue:#0a84ff; --green:#30d158; --red:#ff453a; --orange:#ff9f0a;
+  --fill:rgba(118,118,128,.24); --glass:rgba(28,28,30,.82); --shadow:0 8px 30px rgba(0,0,0,.5);
+  --route2:#636366; --navbg:#13291e;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
+#map{position:fixed;inset:0;z-index:0;background:var(--bg)}
+.leaflet-control-attribution{font-size:9px!important;background:var(--glass)!important;color:var(--text2)!important}
+.leaflet-control-attribution a{color:var(--text2)!important}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--card);color:var(--text);border-radius:14px;box-shadow:var(--shadow)}
+.leaflet-popup-content{margin:12px 14px;font-size:14px;line-height:1.35}
+.hidden{display:none!important}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,select{font:inherit;color:var(--text)}
+
+/* Floating buttons */
+.fabs{position:fixed;right:12px;top:calc(env(safe-area-inset-top) + 12px);z-index:20;display:flex;flex-direction:column;
+  background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.fabs button{width:46px;height:46px;display:grid;place-items:center;color:var(--blue)}
+.fabs button+button{border-top:.5px solid var(--sep)}
+.fabs svg{width:22px;height:22px}
+
+/* Bottom sheet */
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:30;max-height:78vh;display:flex;flex-direction:column;
+  background:var(--glass);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
+  border-radius:16px 16px 0 0;box-shadow:0 -4px 30px rgba(0,0,0,.15);padding-bottom:env(safe-area-inset-bottom);transition:transform .3s ease}
+@media(min-width:760px){.sheet{left:12px;right:auto;width:400px;bottom:12px;border-radius:16px;max-height:calc(100vh - 24px)}}
+.sheet.min .sheet-body{display:none}
+.grabber{padding:8px 0 4px;display:flex;justify-content:center;cursor:pointer;flex:none}
+.grabber span{width:38px;height:5px;border-radius:3px;background:var(--text3)}
+.sheet-body{overflow-y:auto;padding:4px 14px 14px;-webkit-overflow-scrolling:touch}
+h2{font-size:22px;font-weight:700;margin:4px 2px 10px;letter-spacing:-.3px}
+.group{background:var(--card);border-radius:12px;overflow:hidden;margin-bottom:12px}
+.group-title{font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:.2px;margin:16px 16px 6px}
+.group-foot{font-size:12.5px;color:var(--text2);margin:-6px 16px 14px;line-height:1.35}
+.row{display:flex;align-items:center;gap:10px;min-height:46px;padding:0 14px;position:relative}
+.row+.row::before{content:"";position:absolute;top:0;left:14px;right:0;border-top:.5px solid var(--sep)}
+.row label,.row .lbl{flex:1;font-size:16px}
+.row .val{color:var(--text2);font-variant-numeric:tabular-nums}
+.row input[type=number],.row input[type=text]{border:0;background:none;text-align:right;width:96px;outline:none;color:var(--text2);font-variant-numeric:tabular-nums}
+.row select{border:0;background:none;color:var(--text2);text-align:right;outline:none;max-width:62%;direction:rtl}
+.row .unit{color:var(--text3);font-size:14px;min-width:54px}
+.field{display:flex;align-items:center;gap:10px;padding:0 10px 0 14px;min-height:48px}
+.field input{flex:1;border:0;outline:none;background:none;font-size:17px;min-width:0}
+.field+.field{border-top:.5px solid var(--sep)}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.dot.g{background:var(--green)}.dot.r{background:var(--red)}
+.mini{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--blue);background:var(--fill);flex:none}
+.mini svg{width:18px;height:18px}
+.btn{display:block;width:100%;height:50px;border-radius:12px;font-size:17px;font-weight:600;margin:4px 0 10px}
+.btn.primary{background:var(--blue);color:#fff}
+.btn.primary:active{opacity:.8}
+.btn.green{background:var(--green);color:#fff}
+.btn.gray{background:var(--fill);color:var(--blue)}
+.btn:disabled{opacity:.5}
+.suggest .row{cursor:pointer;min-height:54px;padding-top:6px;padding-bottom:6px}
+.suggest .t{font-size:15.5px}.suggest .s{font-size:13px;color:var(--text2)}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:4px;border-radius:2px;background:var(--fill);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+
+/* iOS switch */
+.sw{position:relative;width:51px;height:31px;flex:none}
+.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw span{position:absolute;inset:0;border-radius:16px;background:var(--fill);transition:.2s}
+.sw span::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25);transition:.2s}
+.sw input:checked+span{background:var(--green)}
+.sw input:checked+span::after{transform:translateX(20px)}
+
+/* Segmented control */
+.seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;margin:0 0 12px}
+.seg button{flex:1;height:30px;border-radius:7px;font-size:13.5px;font-weight:500}
+.seg button.on{background:var(--card);box-shadow:0 2px 6px rgba(0,0,0,.12)}
+html.dark .seg button.on{background:#636366}
+
+/* Route cards */
+.rcard{background:var(--card);border-radius:14px;padding:14px;margin-bottom:10px;border:2px solid transparent;cursor:pointer}
+.rcard.sel{border-color:var(--blue)}
+.rc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+.rc-title{font-size:15px;font-weight:600;color:var(--text2)}
+.badge{font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:20px;background:rgba(52,199,89,.15);color:var(--green)}
+.badge.b{background:rgba(0,122,255,.13);color:var(--blue)}
+.rc-time{font-size:28px;font-weight:700;letter-spacing:-.5px}
+.rc-sub{font-size:13.5px;color:var(--text2);margin:2px 0 10px}
+.rc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.rc-grid div{background:var(--card2);border-radius:10px;padding:8px 10px}
+.rc-grid small{display:block;font-size:11.5px;color:var(--text2)}
+.rc-grid b{font-size:16px;font-variant-numeric:tabular-nums}
+.warn{color:var(--orange);font-size:13px;margin-top:8px}
+.stop{display:flex;gap:12px;padding:10px 14px;position:relative}
+.stop+.stop::before{content:"";position:absolute;top:0;left:52px;right:0;border-top:.5px solid var(--sep)}
+.num{width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;font-weight:700;font-size:14px;display:grid;place-items:center;flex:none}
+.stop .t{font-weight:600;font-size:15px}.stop .s{font-size:13px;color:var(--text2);line-height:1.4}
+.ext{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.ext button{background:var(--card);border-radius:12px;padding:10px 4px;font-size:12.5px;font-weight:600;color:var(--blue);display:flex;flex-direction:column;align-items:center;gap:4px}
+.ext button svg{width:24px;height:24px}
+
+/* Modals */
+.modal{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+.modal.open{transform:none}
+@media(min-width:760px){.modal{left:auto;width:440px;box-shadow:var(--shadow)}}
+.mbar{display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:.5px solid var(--sep)}
+.mbar b{font-size:17px}
+.mbar button{color:var(--blue);font-size:17px;min-width:60px}
+.mbar button.done{font-weight:600;text-align:right}
+.mbody{flex:1;overflow-y:auto;padding:4px 16px calc(env(safe-area-inset-bottom) + 30px)}
+.bdot{width:12px;height:12px;border-radius:4px;flex:none}
+
+/* Navigation */
+.nav-top{position:fixed;left:10px;right:10px;top:calc(env(safe-area-inset-top) + 10px);z-index:40;background:var(--navbg);color:#fff;border-radius:16px;padding:14px 16px;display:flex;gap:14px;align-items:center;box-shadow:var(--shadow)}
+@media(min-width:760px){.nav-top{width:420px;right:auto}}
+.nav-arrow{width:56px;height:56px;flex:none;display:grid;place-items:center}
+.nav-arrow svg{width:52px;height:52px}
+.nav-dist{font-size:30px;font-weight:700;letter-spacing:-.5px;line-height:1}
+.nav-instr{font-size:17px;font-weight:500;margin-top:4px;line-height:1.25}
+.nav-road{font-size:13px;opacity:.75;margin-top:2px}
+.nav-bottom{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--glass);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-radius:16px 16px 0 0;padding:12px 14px calc(env(safe-area-inset-bottom) + 12px);box-shadow:0 -4px 30px rgba(0,0,0,.15)}
+@media(min-width:760px){.nav-bottom{left:12px;right:auto;width:420px;bottom:12px;border-radius:16px}}
+.nb-stats{display:flex;justify-content:space-around;text-align:center;margin-bottom:10px}
+.nb-stats b{display:block;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.nb-stats small{color:var(--text2);font-size:12px}
+.nb-next{background:var(--card);border-radius:12px;padding:10px 12px;font-size:14px;margin-bottom:10px;display:flex;gap:10px;align-items:center}
+.nb-actions{display:flex;gap:8px}
+.nb-actions button{flex:1;height:46px;border-radius:12px;background:var(--fill);font-weight:600;color:var(--blue)}
+.nb-actions .end{background:var(--red);color:#fff}
+
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translate(-50%,-150%);z-index:100;background:var(--card);color:var(--text);padding:10px 16px;border-radius:14px;box-shadow:var(--shadow);font-size:14.5px;max-width:90vw;transition:transform .3s;text-align:center}
+.toast.show{transform:translate(-50%,0)}
+.loader{position:fixed;inset:0;z-index:90;display:grid;place-items:center;background:rgba(0,0,0,.15)}
+.loader div{background:var(--card);border-radius:16px;padding:20px 26px;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:var(--shadow);font-size:15px}
+.spin{width:30px;height:30px;border-radius:50%;border:3px solid var(--fill);border-top-color:var(--blue);animation:sp 0.9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.pin{background:none;border:0}
+.pin div{width:28px;height:28px;border-radius:50%;color:#fff;font-weight:700;font-size:13px;display:grid;place-items:center;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.me div{width:22px;height:22px;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 0 0 6px rgba(0,122,255,.25)}
+.me.nav div{width:0;height:0;border-radius:0;background:none;box-shadow:none;border-left:13px solid transparent;border-right:13px solid transparent;border-bottom:30px solid var(--blue);filter:drop-shadow(0 0 3px #fff) drop-shadow(0 2px 4px rgba(0,0,0,.4))}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="fabs" id="fabs">
+  <button id="bProfile" title="Profil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></button>
+  <button id="bFilters" title="Filtres bornes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button>
+  <button id="bNearby" title="Bornes dans la zone"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></button>
+  <button id="bLocate" title="Ma position"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.5l7.5 2.9L13.5 21z"/></svg></button>
+</div>
+
+<div class="sheet" id="sheet">
+  <div class="grabber" id="grabber"><span></span></div>
+  <div class="sheet-body" id="sheetBody">
+    <div class="group" style="margin-top:4px">
+      <div class="field"><span class="dot g"></span><input id="from" placeholder="Départ" autocomplete="off"><button class="mini" id="bMyPos" title="Ma position"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.5l7.5 2.9L13.5 21z"/></svg></button></div>
+      <div class="field"><span class="dot r"></span><input id="to" placeholder="Destination" autocomplete="off"><button class="mini" id="bSwap" title="Inverser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 4v16M7 4L3 8M7 4l4 4M17 20V4M17 20l-4-4M17 20l4-4"/></svg></button></div>
+    </div>
+    <div class="group suggest hidden" id="suggest"></div>
+    <div class="seg" id="segMode"><button data-v="car">Classique</button><button data-v="auth">Véhicule autorisé</button></div>
+    <div class="group">
+      <div class="row hidden" id="liveRow"><span class="bdot" style="background:var(--green);border-radius:50%"></span><span class="lbl" id="liveTxt" style="font-size:14.5px">Véhicule connecté</span><button class="mini" id="bLiveRef" title="Actualiser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></svg></button></div>
+      <div class="row"><span class="lbl">Batterie au départ</span><span class="val" id="socVal">80 %</span></div>
+      <div class="row"><input type="range" id="socRange" min="5" max="100" step="1"></div>
+    </div>
+    <button class="btn primary" id="bGo">Calculer l’itinéraire</button>
+    <div id="results"></div>
+  </div>
+</div>
+
+<!-- Navigation -->
+<div class="nav-top hidden" id="navTop">
+  <div class="nav-arrow" id="navArrow"></div>
+  <div style="flex:1;min-width:0">
+    <div class="nav-dist" id="navDist">—</div>
+    <div class="nav-instr" id="navInstr">Recherche du signal GPS…</div>
+    <div class="nav-road" id="navRoad"></div>
+  </div>
+</div>
+<div class="nav-bottom hidden" id="navBottom">
+  <div class="nb-stats">
+    <div><b id="nbEta">--:--</b><small>arrivée</small></div>
+    <div><b id="nbRem">—</b><small>restants</small></div>
+    <div><b id="nbSoc">—</b><small>batterie est.</small></div>
+  </div>
+  <div class="nb-next hidden" id="nbNext"></div>
+  <div class="nb-actions">
+    <button id="bVoice">🔊 Voix</button>
+    <button id="bSim">Simuler</button>
+    <button class="end" id="bEnd">Fin</button>
+  </div>
+</div>
+
+<!-- Profil -->
+<div class="modal" id="mProfile">
+  <div class="mbar"><span style="min-width:60px"></span><b>Profil</b><button class="done" data-close="mProfile">OK</button></div>
+  <div class="mbody">
+    <div class="group-title">Apparence</div>
+    <div class="seg" id="segTheme"><button data-v="auto">Automatique</button><button data-v="light">Clair</button><button data-v="dark">Sombre</button></div>
+
+    <div class="group-title">Véhicule</div>
+    <div class="group">
+      <div class="row"><span class="lbl">Modèle</span><select id="pCar"></select></div>
+      <div class="row"><label>Batterie utile</label><input type="number" id="pCap" step="0.1" inputmode="decimal"><span class="unit">kWh</span></div>
+      <div class="row"><label>Puissance DC max</label><input type="number" id="pMaxKw" step="1" inputmode="numeric"><span class="unit">kW</span></div>
+    </div>
+    <div class="group-title">Itinéraire et trafic</div>
+    <div class="group">
+      <div class="row"><label>Clé API HERE</label><input type="text" id="pHere" placeholder="trafic temps réel" style="width:58%" autocapitalize="off" autocorrect="off"></div>
+    </div>
+    <div class="group-foot">Avec une clé HERE : trafic en direct, recalcul en route, voies réservées et prix réels des péages. Sans clé : itinéraires OpenStreetMap, sans trafic.</div>
+    <div class="group-title">Véhicule autorisé</div>
+    <div class="seg" id="segAuth"><button data-v="taxi">Voies bus-taxi</button><button data-v="bus">Toutes voies bus</button></div>
+    <div class="group-foot">« Voies bus-taxi » garde des vitesses de voiture et ignore les bouchons sur les voies réservées. « Toutes voies bus » utilise aussi les voies réservées aux seuls bus, avec des vitesses de bus (plus prudentes).</div>
+    <div class="group-title">Centres-villes</div>
+    <div class="seg" id="segCity"><button data-v="auto">Contourner si possible</button><button data-v="fast">Toujours le plus rapide</button></div>
+    <div class="group">
+      <div class="row"><label>Traverser si le gain dépasse</label><input type="number" id="pCityThr" step="1" inputmode="numeric"><span class="unit">min</span></div>
+      <div class="row"><label>Recalcul si ralentissement &gt;</label><input type="number" id="pTrafThr" step="1" inputmode="numeric"><span class="unit">min</span></div>
+    </div>
+    <div class="group-foot">Le contournement n’est retenu que s’il fait perdre moins de temps que le seuil. Si traverser le centre fait gagner plus que ce seuil, l’app passe par le centre.</div>
+
+    <div class="group-title">Véhicule connecté (temps réel)</div>
+    <div class="seg" id="segLive"><button data-v="none">Aucun</button><button data-v="enode">Enode</button><button data-v="ha">Home Assistant</button></div>
+    <div id="liveEnode" class="hidden">
+      <div class="group">
+        <div class="row"><label>URL du Worker</label><input type="text" id="lWorker" placeholder="https://…workers.dev" style="width:60%" autocapitalize="off" autocorrect="off"></div>
+        <div class="row"><label>Clé d’application</label><input type="text" id="lKey" placeholder="APP_KEY" style="width:55%" autocapitalize="off" autocorrect="off"></div>
+      </div>
+      <button class="btn gray" id="bLink" style="margin-top:-4px">Connecter mon véhicule</button>
+      <div class="group-foot">Ouvre l’écran Enode : choisissez votre marque (Hyundai…) et connectez-vous avec votre compte constructeur.</div>
+    </div>
+    <div id="liveHA" class="hidden">
+      <div class="group">
+        <div class="row"><label>URL Home Assistant</label><input type="text" id="lHa" placeholder="https://…" style="width:55%" autocapitalize="off" autocorrect="off"></div>
+        <div class="row"><label>Jeton longue durée</label><input type="text" id="lHaTok" style="width:55%" autocapitalize="off" autocorrect="off"></div>
+        <div class="row"><label>Entité batterie (%)</label><input type="text" id="lHaSoc" placeholder="sensor.ioniq_5_ev_battery_level" style="width:58%" autocapitalize="off" autocorrect="off"></div>
+        <div class="row"><label>Entité autonomie</label><input type="text" id="lHaRange" placeholder="optionnel" style="width:55%" autocapitalize="off" autocorrect="off"></div>
+        <div class="row"><label>Entité position</label><input type="text" id="lHaLoc" placeholder="optionnel (device_tracker…)" style="width:55%" autocapitalize="off" autocorrect="off"></div>
+      </div>
+    </div>
+    <div class="group hidden" id="liveTestG">
+      <div class="row"><span class="lbl" id="liveStatus" style="font-size:14.5px;color:var(--text2)">Non testé</span><button class="mini" id="bLiveTest" title="Tester"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></svg></button></div>
+    </div>
+    <div class="group-foot hidden" id="liveFoot">La batterie réelle remplace le curseur de départ, et elle est relue toutes les 3 minutes pendant le guidage : si elle s’écarte de plus de 6 points de la prévision, les recharges sont recalculées.</div>
+
+    <div class="group-title">Consommation moyenne</div>
+    <div class="group">
+      <div class="row"><label>Nationale / route</label><input type="number" id="pConsNat" step="0.1" inputmode="decimal"><span class="unit">kWh/100</span></div>
+      <div class="row"><label>Autoroute</label><input type="number" id="pConsHwy" step="0.1" inputmode="decimal"><span class="unit">kWh/100</span></div>
+      <div class="row"><label>Majoration hiver / charge</label><input type="number" id="pWinter" step="1" inputmode="numeric"><span class="unit">%</span></div>
+    </div>
+    <div class="group-foot">L’autoroute est détectée sur chaque tronçon de l’itinéraire (classement « motorway » ou vitesse moyenne ≥ 95 km/h).</div>
+
+    <div class="group-title">Stratégie de recharge</div>
+    <div class="group">
+      <div class="row"><label>Arriver à la borne avec au moins</label><input type="number" id="pMin" inputmode="numeric"><span class="unit">%</span></div>
+      <div class="row"><label>Recharger jusqu’à</label><input type="number" id="pTarget" inputmode="numeric"><span class="unit">%</span></div>
+      <div class="row"><label>Détour max vers une borne</label><input type="number" id="pDetour" step="0.5" inputmode="decimal"><span class="unit">km</span></div>
+    </div>
+
+    <div class="group-title">Coûts</div>
+    <div class="group">
+      <div class="row"><label>Compter la batterie de départ</label><label class="sw" style="flex:none"><input type="checkbox" id="pHomeOn"><span></span></label></div>
+      <div class="row"><label>Prix électricité domicile</label><input type="number" id="pHome" step="0.01" inputmode="decimal"><span class="unit">€/kWh</span></div>
+      <div class="row"><label>Péage moyen (classe 1)</label><input type="number" id="pToll" step="0.005" inputmode="decimal"><span class="unit">€/km</span></div>
+    </div>
+    <div class="group-foot">Le péage est estimé sur les kilomètres à péage de l’itinéraire. Ajustez le tarif au kilomètre selon vos trajets habituels.</div>
+
+    <div class="group-title">Abonnements et réductions</div>
+    <div class="group" id="pSubs"></div>
+    <div class="group-foot">Indiquez votre prix au kWh avec abonnement (ex. Ionity Passport). Laissé vide : le tarif affiché par la borne est utilisé s’il est connu, sinon le tarif public estimé du réseau (en gris).</div>
+  </div>
+</div>
+
+<!-- Filtres -->
+<div class="modal" id="mFilters">
+  <div class="mbar"><button id="fAll">Tout</button><b>Bornes</b><button class="done" data-close="mFilters">OK</button></div>
+  <div class="mbody">
+    <div class="group-title">Puissance minimale</div>
+    <div class="seg" id="segPower"><button data-v="0">Toutes</button><button data-v="22">22</button><button data-v="50">50</button><button data-v="100">100</button><button data-v="150">150</button><button data-v="250">250 kW</button></div>
+    <div class="group">
+      <div class="row"><label>Afficher les bornes sur le trajet</label><label class="sw" style="flex:none"><input type="checkbox" id="fShow"><span></span></label></div>
+    </div>
+    <div class="group-title">Réseaux</div>
+    <div class="group" id="fBrands"></div>
+    <div class="group-foot">Les filtres s’appliquent à l’affichage et au calcul des arrêts de recharge. Données : OpenStreetMap.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="loader hidden" id="loader"><div><div class="spin"></div><span id="loaderTxt">Calcul…</span></div></div>
+
+<script>
+"use strict";
+/* ---------------- Données de référence ---------------- */
+const BRANDS=[
+ {k:'ionity',n:'Ionity',re:/ionity/i,c:'#5a3fd6',p:0.59,pw:350},
+ {k:'electra',n:'Electra',re:/electra/i,c:'#00b386',p:0.49,pw:300},
+ {k:'tesla',n:'Tesla Supercharger',re:/tesla|supercharger/i,c:'#e31937',p:0.45,pw:250},
+ {k:'fastned',n:'Fastned',re:/fastned/i,c:'#e6b800',p:0.59,pw:300},
+ {k:'total',n:'TotalEnergies',re:/totalenergies|total energies|\btotal\b/i,c:'#ef3e33',p:0.55,pw:175},
+ {k:'allego',n:'Allego',re:/allego/i,c:'#ff6a13',p:0.59,pw:300},
+ {k:'vianeo',n:'Engie Vianeo',re:/vianeo|engie/i,c:'#00a3e0',p:0.55,pw:150},
+ {k:'izivia',n:'Izivia (EDF)',re:/izivia|sodetrel|corri.?door/i,c:'#1f4e9c',p:0.55,pw:150},
+ {k:'powerdot',n:'Powerdot',re:/power ?dot/i,c:'#3a3a3c',p:0.49,pw:150},
+ {k:'zunder',n:'Zunder',re:/zunder/i,c:'#8e44ad',p:0.55,pw:180},
+ {k:'atlante',n:'Atlante',re:/atlante/i,c:'#2e7d32',p:0.49,pw:180},
+ {k:'leclerc',n:'E.Leclerc',re:/leclerc/i,c:'#0066b3',p:0.40,pw:100},
+ {k:'lidl',n:'Lidl',re:/lidl/i,c:'#0050aa',p:0.35,pw:150},
+ {k:'freshmile',n:'Freshmile',re:/freshmile/i,c:'#26a69a',p:0.50,pw:50},
+ {k:'other',n:'Autres réseaux',re:null,c:'#8e8e93',p:0.50,pw:50}
+];
+const BR=Object.fromEntries(BRANDS.map(b=>[b.k,b]));
+// [nom, batterie utile kWh, conso nationale, conso autoroute (kWh/100 km), DC max kW]
+const CARS=[
+ ['Hyundai Ioniq 5 (58 kWh)',56,16,21,175],
+ ['Hyundai Ioniq 5 (72,6 kWh)',70,16.5,22,220],
+ ['Hyundai Ioniq 5 (77,4 kWh)',74,16.5,22,233],
+ ['Hyundai Ioniq 5 (84 kWh)',80,16.5,22,240],
+ ['Hyundai Ioniq 6 (77,4 kWh)',74,14,18.5,233],
+ ['Hyundai Kona Electric (64 kWh)',64,14.5,19.5,100],
+ ['Kia EV6 (77,4 kWh)',74,16.5,22,233],
+ ['Kia EV3 (81 kWh)',78,15,20,128],
+ ['Kia Niro EV (64,8 kWh)',64,15,20,80],
+ ['Tesla Model 3 Propulsion',57,13,17,170],
+ ['Tesla Model 3 Grande Autonomie',75,13.5,18,250],
+ ['Tesla Model Y Propulsion',60,15,20,175],
+ ['Tesla Model Y Grande Autonomie',75,15.5,20.5,250],
+ ['Renault 5 E-Tech (52 kWh)',52,14,19.5,100],
+ ['Renault Mégane E-Tech (60 kWh)',60,15.5,21,130],
+ ['Renault Scénic E-Tech (87 kWh)',87,16,21.5,150],
+ ['Peugeot e-208 (51 kWh)',48,14,19,100],
+ ['Peugeot e-2008 (54 kWh)',51,15.5,21,100],
+ ['Peugeot e-3008 (73 kWh)',73,17,22,160],
+ ['Volkswagen ID.3 (77 kWh)',77,15,20,170],
+ ['Volkswagen ID.4 (77 kWh)',77,17,22.5,135],
+ ['Skoda Enyaq 85',77,16.5,21.5,135],
+ ['BMW i4 eDrive40',81,15.5,20,205],
+ ['MG4 (64 kWh)',61,15.5,21,135],
+ ['Fiat 500e (42 kWh)',37,13,19,85],
+ ['Dacia Spring',25,13,17,30],
+ ['Personnalisé',60,16,21,100]
+];
+const DEFAULT_PROFILE={car:1,cap:70,maxKw:220,consNat:16.5,consHwy:22,winter:0,soc0:80,min:10,target:80,detour:2,homeOn:true,home:0.25,toll:0.11,subs:{},theme:'auto',here:'',mode:'car',auth:'taxi',city:'auto',cityThr:5,trafThr:10,live:{prov:'none',worker:'',key:'',ha:'',haTok:'',haSoc:'',haRange:'',haLoc:''}};
+const DEFAULT_FILTERS={minPower:50,show:true,brands:Object.fromEntries(BRANDS.map(b=>[b.k,true]))};
+
+/* ---------------- Utilitaires ---------------- */
+const $=s=>document.querySelector(s);
+const D2R=Math.PI/180;
+function load(k,d){try{const v=localStorage.getItem(k);return v?Object.assign(structuredClone(d),JSON.parse(v)):structuredClone(d)}catch(e){return structuredClone(d)}}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+let P=load('er_profile',DEFAULT_PROFILE), F=load('er_filters',DEFAULT_FILTERS);
+for(const [k,v] of Object.entries({here:'',mode:'car',auth:'taxi',city:'auto',cityThr:5,trafThr:10}))if(P[k]==null)P[k]=v;
+P.live=Object.assign({prov:'none',worker:'',key:'',ha:'',haTok:'',haSoc:'',haRange:'',haLoc:''},P.live||{});
+F.brands=Object.assign(Object.fromEntries(BRANDS.map(b=>[b.k,true])),F.brands);
+const hav=(a1,o1,a2,o2)=>{const dA=(a2-a1)*D2R,dO=(o2-o1)*D2R;const x=Math.sin(dA/2)**2+Math.cos(a1*D2R)*Math.cos(a2*D2R)*Math.sin(dO/2)**2;return 12742*Math.asin(Math.sqrt(x))};
+const euro=v=>v.toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
+const fmtDur=s=>{const m=Math.round(s/60);if(m<60)return m+' min';const h=Math.floor(m/60),r=m%60;return h+' h '+String(r).padStart(2,'0')};
+const fmtKm=k=>k<1?Math.round(k*1000/10)*10+' m':(k<10?k.toFixed(1).replace('.',','):Math.round(k))+' km';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let toastT;function toast(m,ms=3200){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),ms)}
+function loading(on,txt){$('#loader').classList.toggle('hidden',!on);if(txt)$('#loaderTxt').textContent=txt}
+async function fetchJSON(url,opt,ms=30000){const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{...opt,signal:c.signal});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()}finally{clearTimeout(t)}}
+
+/* ---------------- Thème ---------------- */
+let tiles;
+const mq=window.matchMedia('(prefers-color-scheme: dark)');
+function isDark(){return P.theme==='dark'||(P.theme==='auto'&&mq.matches)}
+function applyTheme(){
+  const d=isDark();document.documentElement.classList.toggle('dark',d);
+  $('#themeColor').setAttribute('content',d?'#000000':'#f2f2f7');
+  if(tiles)map.removeLayer(tiles);
+  tiles=L.tileLayer(d?'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png':'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    {subdomains:'abcd',maxZoom:20,attribution:'© OpenStreetMap · © CARTO'}).addTo(map);
+  tiles.bringToBack();
+  document.querySelectorAll('#segTheme button').forEach(b=>b.classList.toggle('on',b.dataset.v===P.theme));
+  if(state.plans)drawRoutes();
+}
+mq.addEventListener?.('change',()=>{if(P.theme==='auto')applyTheme()});
+
+/* ---------------- Carte ---------------- */
+const map=L.map('map',{zoomControl:false}).setView([46.6,2.4],6);
+const state={from:null,to:null,models:null,plans:null,sel:'toll',raw:[],layers:L.layerGroup().addTo(map),stLayer:L.layerGroup().addTo(map),nearLayer:L.layerGroup().addTo(map),me:null};
+applyTheme();
+
+/* ---------------- Géocodage ---------------- */
+async function geocode(q){
+  const out=[];const c=map.getCenter();
+  const reqs=[
+    fetchJSON('https://api-adresse.data.gouv.fr/search/?limit=5&q='+encodeURIComponent(q),{},8000).then(j=>j.features.forEach(f=>out.push({label:f.properties.label,sub:f.properties.context,lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],src:0}))).catch(()=>{}),
+    fetchJSON(`https://photon.komoot.io/api/?lang=fr&limit=6&lat=${c.lat}&lon=${c.lng}&q=`+encodeURIComponent(q),{},8000).then(j=>j.features.forEach(f=>{const p=f.properties;const street=p.street?((p.housenumber?p.housenumber+' ':'')+p.street):'';out.push({label:[p.name,street,p.city].filter((x,i,a)=>x&&a.indexOf(x)===i).join(', '),sub:[p.postcode,p.state,p.country].filter(Boolean).join(' · '),lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],src:1})})).catch(()=>{})
+  ];
+  await Promise.all(reqs);
+  const seen=new Set();return out.sort((a,b)=>a.src-b.src).filter(r=>{const k=r.label.toLowerCase();if(!r.label||seen.has(k))return false;seen.add(k);return true}).slice(0,8);
+}
+let gT,activeInput=null;
+function setupSearch(id,key){
+  const inp=$('#'+id);
+  inp.addEventListener('focus',()=>{activeInput=key;$('#sheet').classList.remove('min');inp.select()});
+  inp.addEventListener('input',()=>{state[key]=null;clearTimeout(gT);const q=inp.value.trim();if(q.length<3){$('#suggest').classList.add('hidden');return}
+    gT=setTimeout(async()=>{const res=await geocode(q);if(activeInput!==key)return;const box=$('#suggest');
+      box.innerHTML=res.length?res.map((r,i)=>`<div class="row" data-i="${i}"><div><div class="t">${esc(r.label)}</div><div class="s">${esc(r.sub||'')}</div></div></div>`).join(''):'<div class="row"><span class="lbl" style="color:var(--text2)">Aucun résultat</span></div>';
+      box.classList.remove('hidden');
+      box.querySelectorAll('[data-i]').forEach(el=>el.onclick=()=>{const r=res[+el.dataset.i];state[key]=r;inp.value=r.label;box.classList.add('hidden');inp.blur();map.setView([r.lat,r.lon],12)});
+    },300)});
+}
+setupSearch('from','from');setupSearch('to','to');
+
+function getPos(opts={}){return new Promise((res,rej)=>{if(!navigator.geolocation)return rej(new Error('Géolocalisation indisponible'));navigator.geolocation.getCurrentPosition(p=>res(p),e=>rej(e),{enableHighAccuracy:true,timeout:15000,maximumAge:30000,...opts})})}
+async function useMyPos(){
+  try{const p=await getPos();state.from={label:'Ma position',lat:p.coords.latitude,lon:p.coords.longitude};$('#from').value='Ma position';showMe(p.coords.latitude,p.coords.longitude);return true}
+  catch(e){toast('Position indisponible : autorisez la localisation (HTTPS requis).');return false}
+}
+function showMe(lat,lon,heading,nav){
+  const icon=L.divIcon({className:'me'+(nav?' nav':''),html:`<div style="${nav&&heading!=null?`transform:rotate(${heading}deg)`:''}"></div>`,iconSize:[26,30],iconAnchor:[13,15]});
+  if(!state.me)state.me=L.marker([lat,lon],{icon,zIndexOffset:1000,interactive:false}).addTo(map);else{state.me.setLatLng([lat,lon]);state.me.setIcon(icon)}
+}
+$('#bMyPos').onclick=useMyPos;
+$('#bLocate').onclick=async()=>{try{const p=await getPos();showMe(p.coords.latitude,p.coords.longitude);map.setView([p.coords.latitude,p.coords.longitude],14)}catch(e){toast('Position indisponible')}};
+$('#bSwap').onclick=()=>{[state.from,state.to]=[state.to,state.from];$('#from').value=state.from?.label||'';$('#to').value=state.to?.label||''};
+$('#grabber').onclick=()=>$('#sheet').classList.toggle('min');
+
+/* ---------------- Itinéraires : HERE (trafic) ou OSRM (repli) ---------------- */
+async function osrmRoutes(a,b,noToll){
+  const base=`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=true&alternatives=3`;
+  const tries=noToll?['&exclude=toll','&exclude=motorway']:[''];
+  let err;
+  for(const t of tries){try{const j=await fetchJSON(base+t,{},40000);if(j.code==='Ok'&&j.routes?.length)return j.routes.map(r=>{const m=buildModel(r);m.noToll=noToll;return m});err=new Error(j.message||j.code)}catch(e){err=e}}
+  throw err;
+}
+function buildModel(route){
+  const steps=route.legs.flatMap(l=>l.steps);const pts=[];
+  let km=0,kwh=0,sec=0,tollKm=0,motorKm=0,urbanKm=0;const k=1+(+P.winter||0)/100;
+  steps.forEach(s=>{
+    const cls=new Set();(s.intersections||[]).forEach(i=>(i.classes||[]).forEach(c=>cls.add(c)));
+    const d=s.distance/1000,v=s.duration>0?d/(s.duration/3600):0;
+    const motor=cls.has('motorway')||v>=95;s._motor=motor;
+    const cons=(motor?+P.consHwy:+P.consNat)*k/100;
+    if(cls.has('toll'))tollKm+=d;if(motor)motorKm+=d;if(!motor&&v>0&&v<40)urbanKm+=d;
+    s.text=instr(s);s.road=roadOf(s);
+    const c=s.geometry.coordinates;
+    if(!pts.length)pts.push([c[0][1],c[0][0],0,0,0]);
+    s._start=pts.length-1;
+    const segs=[];let Lsum=0;for(let i=1;i<c.length;i++){const l=hav(c[i-1][1],c[i-1][0],c[i][1],c[i][0]);segs.push(l);Lsum+=l}
+    for(let i=1;i<c.length;i++){const f=Lsum>0?segs[i-1]/Lsum:1/(c.length-1);km+=d*f;kwh+=d*cons*f;sec+=s.duration*f;pts.push([c[i][1],c[i][0],km,kwh,sec])}
+    if(c.length<2){km+=d;kwh+=d*cons;sec+=s.duration}
+    s._end=pts.length-1;
+  });
+  return {engine:'osrm',route,steps,pts,km,kwh,sec,tollKm,motorKm,urbanKm,tollCost:null,delaySec:0,jams:[],rebuild(){const m=buildModel(route);m.noToll=this.noToll;return m}};
+}
+// Décodeur « flexible polyline » HERE
+const FP='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_',FPI={};[...FP].forEach((c,i)=>FPI[c]=i);
+function decodeFlex(str){
+  const vals=[];let res=0,shift=0;
+  for(const ch of str){const v=FPI[ch];res+=(v&31)*Math.pow(2,shift);if(v&32)shift+=5;else{vals.push(res);res=0;shift=0}}
+  const header=vals[1],prec=header%16,third=Math.floor(header/16)%8,dims=third?3:2,fac=Math.pow(10,prec);
+  const zz=n=>n%2?-(n+1)/2:n/2;
+  const out=[];let la=0,lo=0;
+  for(let i=2;i+1<vals.length;i+=dims){la+=zz(vals[i]);lo+=zz(vals[i+1]);out.push([la/fac,lo/fac])}
+  return out;
+}
+function mapAct(a){
+  const dir=a.direction==='middle'?'straight':a.direction;
+  const mod=!dir||dir==='straight'?'straight':(a.severity==='light'?'slight '+dir:a.severity==='heavy'?'sharp '+dir:dir);
+  switch(a.action){
+    case 'depart':return {type:'depart'};
+    case 'arrive':return {type:'arrive'};
+    case 'roundaboutEnter':case 'roundaboutPass':case 'roundaboutExit':return {type:'roundabout',exit:a.exit};
+    case 'uTurn':return {type:'turn',modifier:'uturn'};
+    case 'keep':case 'exit':case 'ramp':case 'continueHighway':case 'enterHighway':return {type:'fork',modifier:dir&&dir!=='straight'?'slight '+dir:'straight'};
+    case 'continue':return {type:'continue',modifier:'straight'};
+    default:return {type:'turn',modifier:mod};
+  }
+}
+function cleanInstr(t){if(!t)return '';const parts=t.split(/(?<=\.)\s+/).filter(x=>!/\d+(?:[.,]\d+)?\s?(?:m|km)\b/.test(x)||parts0(x));return (parts.join(' ')||t).replace(/\.$/,'')}
+function parts0(x){return /^(Prenez|Tournez|Au |Restez|Serrez|Quittez|Sortez|Continuez sur l)/.test(x)}
+function buildHere(route,noToll){
+  const pts=[],steps=[],jams=[];let km=0,kwh=0,sec=0,motorKm=0,urbanKm=0,tollCost=0,tollFound=false,base=0,dur=0;
+  const k=1+(+P.winter||0)/100;
+  for(const S of route.sections){
+    const poly=decodeFlex(S.polyline),n=poly.length;if(n<2)continue;
+    if(!pts.length)pts.push([poly[0][0],poly[0][1],0,0,0]);
+    const off0=pts.length-1;
+    const segLen=[];for(let i=0;i<n-1;i++)segLen.push(hav(poly[i][0],poly[i][1],poly[i+1][0],poly[i+1][1]));
+    const spans=S.spans?.length?S.spans:[{offset:0,length:S.summary.length,duration:S.summary.duration}];
+    for(let si=0;si<spans.length;si++){
+      const sp=spans[si],a=sp.offset,b=si+1<spans.length?spans[si+1].offset:n-1;
+      let Lsum=0;for(let i=a;i<b;i++)Lsum+=segLen[i];
+      const d=sp.length!=null?sp.length/1000:Lsum,du=sp.duration!=null?sp.duration:d/50*3600,v=du>0?d/(du/3600):0;
+      const motor=(sp.streetAttributes||[]).includes('motorway')||sp.functionalClass===1||v>=95;sp._motor=motor;
+      const cons=(motor?+P.consHwy:+P.consNat)*k/100;
+      if(motor)motorKm+=d;if(!motor&&v>0&&v<40&&(sp.functionalClass??5)>=3)urbanKm+=d;
+      const ds=sp.dynamicSpeedInfo;if(ds&&ds.baseSpeed>0&&b>a){const r=ds.trafficSpeed/ds.baseSpeed;if(r<0.75)jams.push([off0+a,off0+b,r])}
+      sp._road=[sp.routeNumbers?.[0]?.value,sp.names?.find(x=>/^fr/i.test(x.language||''))?.value||sp.names?.[0]?.value].filter(Boolean).join(' · ');
+      for(let i=a;i<b;i++){const f=Lsum>0?segLen[i]/Lsum:1/(b-a);km+=d*f;kwh+=d*cons*f;sec+=du*f;pts.push([poly[i+1][0],poly[i+1][1],km,kwh,sec])}
+    }
+    const spanAt=o=>{let r=spans[0];for(const sp of spans){if(sp.offset<=o)r=sp;else break}return r};
+    const acts=S.actions||[];
+    acts.forEach((ac,ai)=>{
+      const sp=spanAt(ac.offset),nxtSp=spanAt(Math.min(n-1,ac.offset+1));
+      const m=mapAct(ac);
+      const st={maneuver:m,_start:off0+ac.offset,_end:off0+(ai+1<acts.length?acts[ai+1].offset:n-1),_motor:!!nxtSp._motor,road:nxtSp._road||sp._road||''};
+      st.text=cleanInstr(ac.instruction)||instr({maneuver:m,name:st.road});
+      steps.push(st);
+    });
+    dur+=S.summary?.duration||0;base+=S.summary?.baseDuration??S.summary?.duration??0;
+    for(const t of S.tolls||[]){const vals=(t.fares||[]).map(f=>(f.convertedPrice||f.price)?.value).filter(x=>x>0);if(vals.length){tollCost+=Math.min(...vals);tollFound=true}}
+  }
+  if(!steps.length)steps.push({maneuver:{type:'arrive'},_start:0,_end:pts.length-1,text:'Arrivée',road:''});
+  return {engine:'here',route,steps,pts,km,kwh,sec,tollKm:0,motorKm,urbanKm,tollCost:tollFound?tollCost:(noToll?0:null),delaySec:Math.max(0,dur-base),jams,noToll,rebuild(){return buildHere(route,noToll)}};
+}
+function hereMode(){return P.mode==='auth'?(P.auth==='bus'?'bus':'taxi'):'car'}
+async function hereRoutes(a,b,noToll,alts=3,modeOv){
+  const mode=modeOv||hereMode();
+  // Du plus complet au plus simple : le mode bus (bêta chez HERE) peut refuser certains attributs.
+  const tries=[
+    ['length,duration,functionalClass,streetAttributes,dynamicSpeedInfo,names,routeNumbers','polyline,summary,actions,instructions,tolls'],
+    ['length,duration,functionalClass,names','polyline,summary,actions,instructions,tolls'],
+    ['length,duration,functionalClass','polyline,summary,actions,instructions']];
+  let err;
+  for(const [sp,ret] of tries){
+    const q=new URLSearchParams({transportMode:mode,origin:a.lat+','+a.lon,destination:b.lat+','+b.lon,return:ret,spans:sp,lang:'fr-FR',alternatives:String(alts),apiKey:P.here.trim()});
+    if(ret.includes('tolls'))q.set('currency','EUR');
+    if(noToll)q.set('avoid[features]','tollRoad');
+    try{
+      const r=await fetch('https://router.hereapi.com/v8/routes?'+q.toString());
+      const j=await r.json().catch(()=>({}));
+      if(r.status===401||r.status===403)throw Object.assign(new Error('Clé HERE refusée'),{fatal:true});
+      if(!r.ok){err=new Error(j.title||j.cause||('HERE '+r.status));continue}
+      if(!j.routes?.length)throw new Error('Aucun itinéraire HERE');
+      return j.routes.map(rt=>{const m=buildHere(rt,noToll);m.hereMode=mode;
+        m.notices=rt.sections.flatMap(x=>x.notices||[]).filter(n=>n.severity==='critical').map(n=>n.title||n.code);return m});
+    }catch(e){err=e;if(e.fatal)break}
+  }
+  throw err;
+}
+async function getRoutes(a,b,noToll,alts){
+  if(P.here?.trim()){
+    try{return await hereRoutes(a,b,noToll,alts)}
+    catch(e){toast((P.mode==='auth'?'Voies réservées indisponibles : ':'')+'HERE ne répond pas ('+e.message+'). Itinéraire classique sans trafic.',6000)}
+  }else if(P.mode==='auth')toast('Le mode véhicule autorisé nécessite une clé HERE (Profil). Itinéraire classique.',6000);
+  const ms=await osrmRoutes(a,b,noToll);
+  if(P.mode==='auth')ms.forEach(m=>m.authFailed=true);
+  return ms;
+}
+// En mode véhicule autorisé : calcule aussi l'itinéraire classique pour mesurer le gain des voies réservées.
+async function authCompare(m,a,b,noToll){
+  if(!m||m.engine!=='here'||m.hereMode==='car')return;
+  try{const car=chooseRoute(await hereRoutes(a,b,noToll,1,'car'));m.authGain=car.sec-m.sec;m.authCarSec=car.sec}catch(e){m.authGain=null}
+}
+// Règle centres-villes : on contourne seulement si cela coûte moins que le seuil ; jamais si traverser fait gagner davantage.
+function chooseRoute(models){
+  const f=models.reduce((x,y)=>y.sec<x.sec?y:x);
+  if(P.city==='fast'||models.length<2){f.cityInfo=null;return f}
+  const thr=(+P.cityThr||5)*60;
+  const less=models.filter(m=>m!==f&&m.urbanKm<f.urbanKm-1);
+  const byp=less.filter(m=>m.sec-f.sec<=thr).sort((a,b)=>a.urbanKm-b.urbanKm||a.sec-b.sec)[0];
+  if(byp){byp.cityInfo={type:'bypass',delta:byp.sec-f.sec};return byp}
+  const alt=less.sort((a,b)=>a.sec-b.sec)[0];
+  f.cityInfo=alt?{type:'through',delta:alt.sec-f.sec}:null;
+  return f;
+}
+
+/* ---------------- Bornes (Overpass / OSM) ---------------- */
+const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+async function overpass(q){
+  let err;for(const ep of OVERPASS){try{return await fetchJSON(ep,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)},95000)}catch(e){err=e}}throw err;
+}
+function thin(pts,stepKm){const o=[pts[0]];let last=0;for(const p of pts){if(p[2]-last>=stepKm){o.push(p);last=p[2]}}o.push(pts[pts.length-1]);return o}
+async function stationsAlong(models){
+  const R=Math.max(500,Math.round((+P.detour||2)*1000));
+  const parts=models.map(m=>`nwr["amenity"="charging_station"](around:${R},${thin(m.pts,3).map(p=>p[0].toFixed(5)+','+p[1].toFixed(5)).join(',')});`).join('');
+  const j=await overpass(`[out:json][timeout:90];(${parts});out center tags;`);
+  return parseStations(j.elements);
+}
+function parsePower(t){
+  let mx=0;
+  for(const [k,v] of Object.entries(t)){
+    if(!/(:output|maxpower)$/.test(k))continue;
+    for(const m of String(v).replace(/(\d),(\d)/g,'$1.$2').matchAll(/(\d+(?:\.\d+)?)\s*(kw|w|mw|kva)?/gi)){
+      let n=parseFloat(m[1]);const u=(m[2]||'').toLowerCase();
+      if(u==='w'||(!u&&n>=1000))n/=1000;if(u==='mw')n*=1000;
+      if(n>mx&&n<=1000)mx=n;
+    }
+  }
+  return mx;
+}
+function parseStations(els){
+  const out=[],seen=new Map();
+  for(const e of els){
+    const t=e.tags||{};const lat=e.lat??e.center?.lat,lon=e.lon??e.center?.lon;if(lat==null)continue;
+    if(['private','no'].includes(t.access))continue;
+    const txt=[t.network,t.brand,t.operator,t.name].filter(Boolean).join(' ');
+    const b=BRANDS.find(b=>b.re&&b.re.test(txt))||BR.other;
+    const keys=Object.keys(t);
+    const dc=keys.some(k=>/^socket:(type2_combo|chademo|tesla_supercharger|ccs)/.test(k))||/supercharger|ionity|electra|fastned/i.test(txt);
+    let pw=parsePower(t);let est=false;
+    if(!pw){est=true;pw=dc?b.pw:(keys.some(k=>/^socket:type2/.test(k))?22:(b.k!=='other'?b.pw:0))}
+    let price=null;const ch=(t.charge||'')+' '+(t['charge:conditional']||'');const m=ch.replace(/(\d),(\d)/g,'$1.$2').match(/(\d+(?:\.\d+)?)\s*(?:€|eur)\s*\/\s*kwh/i);if(m)price=parseFloat(m[1]);
+    const st={id:e.type+e.id,lat,lon,b:b.k,name:t.name||(b.k==='other'?(t.operator||t.network||'Borne de recharge'):b.n),op:t.operator||t.network||'',pw,est,dc,price,cap:+t.capacity||null,
+      addr:[[t['addr:housenumber'],t['addr:street']].filter(Boolean).join(' '),t['addr:city']].filter(Boolean).join(', '),fee:t.fee};
+    const key=b.k+':'+lat.toFixed(3)+':'+lon.toFixed(3);
+    const prev=seen.get(key);
+    if(prev){if(st.pw>prev.pw){prev.pw=st.pw;prev.est=st.est}prev.cap=(prev.cap||1)+(st.cap||1);if(!prev.price&&price)prev.price=price;continue}
+    seen.set(key,st);out.push(st);
+  }
+  return out;
+}
+const passFilter=s=>F.brands[s.b]!==false&&s.pw>=(+F.minPower||0);
+function priceFor(s){
+  const sub=parseFloat(String(P.subs?.[s.b]??'').replace(',','.'));
+  if(sub>0)return {p:sub,src:'abonnement'};
+  if(s.price)return {p:s.price,src:'tarif borne'};
+  return {p:BR[s.b].p,src:'tarif public estimé'};
+}
+function locate(st,m){
+  const pts=m.pts,cos=Math.cos(st.lat*D2R);let best=1e18,bi=0;
+  for(let i=0;i<pts.length;i++){const dy=pts[i][0]-st.lat,dx=(pts[i][1]-st.lon)*cos,d=dy*dy+dx*dx;if(d<best){best=d;bi=i}}
+  return {i:bi,km:pts[bi][2],kwh:pts[bi][3],off:Math.sqrt(best)*111.32};
+}
+
+/* ---------------- Planification recharge ---------------- */
+function plan(m,soc0){
+  const cap=+P.cap,reserve=cap*(+P.min)/100,target=cap*(+P.target)/100;
+  const lim=(+P.detour||2)+0.3;
+  const cands=state.raw.filter(passFilter).map(s=>({...s,...locate(s,m)})).filter(s=>s.off<=lim).sort((a,b)=>a.km-b.km);
+  let E=cap*soc0/100,curKwh=0,curKm=0;const stops=[];let warn='';
+  for(let g=0;g<20;g++){
+    const need=m.kwh-curKwh;
+    if(E-need>=reserve)break;
+    const limit=curKwh+E-reserve;
+    const ok=cands.filter(s=>s.kwh>curKwh+0.5&&s.kwh<=limit&&s.km>curKm+3);
+    if(!ok.length){warn=E-need<0?'Aucune borne compatible avec vos filtres à portée : élargissez les filtres, la puissance ou le détour.':'Arrivée sous la réserve choisie ('+P.min+' %).';break}
+    const far=ok[ok.length-1].km;
+    const zone=ok.filter(s=>s.km>=far-35);
+    const s=zone.reduce((a,b)=>(Math.min(b.pw,+P.maxKw)>Math.min(a.pw,+P.maxKw)+20||(Math.min(b.pw,+P.maxKw)>=Math.min(a.pw,+P.maxKw)-20&&b.km>a.km))?b:a);
+    const Earr=E-(s.kwh-curKwh);
+    const needRest=m.kwh-s.kwh+reserve+cap*0.05;
+    let Et=Math.min(target,Math.max(needRest,Earr+cap*0.1));if(needRest>target)Et=target;
+    const add=Math.max(0,Et-Earr);
+    const eff=Math.max(3,Math.min(s.pw||22,+P.maxKw)*(Et/cap>0.8?0.55:0.72));
+    const pr=priceFor(s);
+    const chargeSec=add/eff*3600+300,detourSec=2*s.off/40*3600;
+    stops.push({s,km:s.km,kwh:s.kwh,i:s.i,socIn:Earr/cap*100,socOut:Et/cap*100,add,chargeSec,detourSec,price:pr.p,src:pr.src,cost:add*1.08*pr.p});
+    E=Et;curKwh=s.kwh;curKm=s.km;
+  }
+  const arr=E-(m.kwh-curKwh);
+  const bought=stops.reduce((a,s)=>a+s.add,0);
+  const chargeCost=stops.reduce((a,s)=>a+s.cost,0);
+  const homeCost=P.homeOn?Math.max(0,m.kwh-bought)*(+P.home):0;
+  const tollReal=m.tollCost!=null;
+  const tollCost=tollReal?m.tollCost:(m.engine==='here'?(m.noToll?0:m.motorKm*0.85):m.tollKm)*(+P.toll);
+  const chargeSec=stops.reduce((a,s)=>a+s.chargeSec+s.detourSec,0);
+  return {m,stops,soc0,arrSoc:arr/cap*100,chargeCost,homeCost,elec:chargeCost+homeCost,tollCost,tollReal,total:chargeCost+homeCost+tollCost,chargeSec,totalSec:m.sec+chargeSec,warn,cands};
+}
+function socAt(pl,kwh){
+  const cap=+P.cap;let E=cap*pl.soc0/100,last=0;
+  for(const s of pl.stops){if(s.kwh>kwh)break;E=s.socOut/100*cap;last=s.kwh}
+  return (E-(kwh-last))/cap*100;
+}
+
+/* ---------------- Véhicule connecté (Enode / Home Assistant) ---------------- */
+let UID;try{UID=localStorage.getItem('er_uid')}catch(e){}
+if(!UID){UID='er_'+(crypto.randomUUID?crypto.randomUUID().replace(/-/g,''):Math.random().toString(36).slice(2)+Date.now().toString(36));try{localStorage.setItem('er_uid',UID)}catch(e){}}
+const trimUrl=u=>String(u||'').trim().replace(/\/+$/,'');
+async function liveFetch(){
+  const L_=P.live;
+  if(L_.prov==='enode'){
+    if(!L_.worker)throw new Error('URL du Worker manquante');
+    const list=await fetchJSON(trimUrl(L_.worker)+'/vehicles?user='+UID,{headers:{'X-App-Key':L_.key||''}},15000);
+    if(list.error)throw new Error(list.error);
+    if(!list.length)throw new Error('Aucun véhicule lié : touchez « Connecter mon véhicule »');
+    const v=list.find(x=>x.soc!=null)||list[0];
+    return {name:[v.brand,v.model].filter(Boolean).join(' ')||'Véhicule',soc:v.soc,range:v.range,cap:v.capacity,lat:v.lat,lon:v.lon,charging:v.charging,plugged:v.plugged,updated:v.updated};
+  }
+  if(L_.prov==='ha'){
+    const base=trimUrl(L_.ha),h={headers:{Authorization:'Bearer '+(L_.haTok||'').trim()}};
+    if(!base||!L_.haSoc)throw new Error('URL Home Assistant ou entité batterie manquante');
+    const get=id=>fetchJSON(base+'/api/states/'+encodeURIComponent(id.trim()),h,12000);
+    const [s,r,l]=await Promise.all([get(L_.haSoc),L_.haRange?get(L_.haRange).catch(()=>null):null,L_.haLoc?get(L_.haLoc).catch(()=>null):null]);
+    const soc=parseFloat(s.state);if(isNaN(soc))throw new Error('Valeur batterie illisible : '+s.state);
+    let range=r?parseFloat(r.state):null;if(r&&/mi/i.test(r.attributes?.unit_of_measurement||''))range*=1.609;
+    return {name:s.attributes?.friendly_name?.replace(/ ?(EV )?battery.*$/i,'')||'Véhicule',soc,range,lat:l?.attributes?.latitude,lon:l?.attributes?.longitude,updated:s.last_updated};
+  }
+  return null;
+}
+function ago(t){if(!t)return '';const m=Math.round((Date.now()-new Date(t))/60000);if(isNaN(m))return '';return m<1?'à l’instant':m<60?'il y a '+m+' min':m<1440?'il y a '+Math.round(m/60)+' h':'il y a '+Math.round(m/1440)+' j'}
+function liveLabel(v){return `${esc(v.name)} · <b>${Math.round(v.soc)} %</b>${v.range?' · '+Math.round(v.range)+' km':''}${v.charging?' · ⚡ en charge':''}<span style="color:var(--text2)">${v.updated?' · '+ago(v.updated):''}</span>`}
+async function liveRefresh(quiet){
+  if(P.live.prov==='none'){$('#liveRow').classList.add('hidden');return null}
+  $('#liveRow').classList.remove('hidden');
+  try{
+    const v=await liveFetch();state.live=v;
+    $('#liveTxt').innerHTML=liveLabel(v);
+    if(v.soc!=null&&!nav.active){P.soc0=Math.round(v.soc);$('#socRange').value=P.soc0;$('#socVal').textContent=P.soc0+' % (réel)'}
+    return v;
+  }catch(e){state.live=null;$('#liveTxt').innerHTML='<span style="color:var(--orange)">Véhicule : '+esc(e.message)+'</span>';if(!quiet)toast('Véhicule connecté : '+e.message,5000);return null}
+}
+$('#bLiveRef').onclick=()=>liveRefresh(false);
+
+/* ---------------- Calcul principal ---------------- */
+$('#bGo').onclick=async()=>{
+  if(!state.from&&!$('#from').value.trim()){if(!await useMyPos())return}
+  if(!state.from)return toast('Choisissez un départ dans la liste');
+  if(!state.to)return toast('Choisissez une destination dans la liste');
+  $('#suggest').classList.add('hidden');document.activeElement?.blur();
+  loading(true,'Calcul des itinéraires…');
+  try{
+    if(P.live.prov!=='none'){loading(true,'Lecture de la batterie du véhicule…');await liveRefresh(true);loading(true,'Calcul des itinéraires…')}
+    const [rT,rN]=await Promise.allSettled([getRoutes(state.from,state.to,false),getRoutes(state.from,state.to,true)]);
+    if(rT.status!=='fulfilled')throw new Error('Itinéraire introuvable');
+    const mT=chooseRoute(rT.value);
+    let mN=rN.status==='fulfilled'?chooseRoute(rN.value):null;
+    if(mN&&Math.abs(mN.km-mT.km)<1&&Math.abs(mN.sec-mT.sec)<60)mN.same=true;
+    if(P.mode==='auth'){loading(true,'Comparaison avec l’itinéraire classique…');await Promise.all([authCompare(mT,state.from,state.to,false),authCompare(mN,state.from,state.to,true)])}
+    state.models={toll:mT,free:mN};
+    loading(true,'Recherche des bornes sur le trajet…');
+    try{state.raw=await stationsAlong([mT,mN].filter(Boolean))}catch(e){state.raw=[];toast('Bornes indisponibles pour le moment (serveur OSM saturé). Réessayez.',5000)}
+    replan();
+    $('#sheet').classList.remove('min');
+  }catch(e){toast('Erreur : '+e.message,5000)}
+  finally{loading(false)}
+};
+function replan(){
+  if(!state.models)return;
+  const soc0=+P.soc0;
+  const rb=m=>{if(!m)return m;const n=m.rebuild();for(const k of ['same','cityInfo','hereMode','notices','authGain','authCarSec','authFailed'])n[k]=m[k];return n};
+  state.models.toll=rb(state.models.toll);state.models.free=rb(state.models.free);
+  state.plans={toll:plan(state.models.toll,soc0),free:state.models.free?plan(state.models.free,soc0):null};
+  drawRoutes();renderResults();
+}
+
+/* ---------------- Rendu ---------------- */
+function stationPopup(s,extra=''){
+  const b=BR[s.b],pr=priceFor(s);
+  return `<b>${esc(s.name)}</b><br><span style="color:${b.c}">●</span> ${esc(b.n)}${s.op&&b.k==='other'?' · '+esc(s.op):''}<br>
+  ${s.pw?Math.round(s.pw)+' kW'+(s.est?' (estimé)':''):'Puissance inconnue'}${s.cap?' · '+s.cap+' point(s)':''}<br>
+  ${pr.p.toFixed(2).replace('.',',')} €/kWh <span style="color:var(--text2)">(${pr.src})</span>${s.addr?'<br><span style="color:var(--text2)">'+esc(s.addr)+'</span>':''}${extra}`;
+}
+function drawRoutes(){
+  state.layers.clearLayers();state.stLayer.clearLayers();
+  const pl=state.plans;if(!pl)return;
+  const order=state.sel==='toll'?['free','toll']:['toll','free'];
+  for(const k of order){const p=pl[k];if(!p)continue;const sel=k===state.sel;
+    const ll=p.m.pts.map(q=>[q[0],q[1]]);
+    if(sel)L.polyline(ll,{color:'#ffffff',weight:10,opacity:.9}).addTo(state.layers);
+    L.polyline(ll,{color:sel?getComputedStyle(document.documentElement).getPropertyValue('--blue').trim():getComputedStyle(document.documentElement).getPropertyValue('--route2').trim(),weight:sel?6:5,opacity:sel?1:.8}).on('click',()=>selectRoute(k)).addTo(state.layers);
+  }
+  const cur=pl[state.sel];
+  drawJams(cur.m,state.layers);
+  if(F.show)for(const s of cur.cands){L.circleMarker([s.lat,s.lon],{radius:6,color:'#fff',weight:2,fillColor:BR[s.b].c,fillOpacity:1}).bindPopup(stationPopup(s)).addTo(state.stLayer)}
+  cur.stops.forEach((st,i)=>L.marker([st.s.lat,st.s.lon],{icon:L.divIcon({className:'pin',html:`<div style="background:${BR[st.s.b].c}">${i+1}</div>`,iconSize:[28,28],iconAnchor:[14,14]}),zIndexOffset:500})
+    .bindPopup(stationPopup(st.s,`<br><b>Arrêt ${i+1}</b> : ${Math.round(st.socIn)} % → ${Math.round(st.socOut)} % · ${fmtDur(st.chargeSec)} · ${euro(st.cost)}`)).addTo(state.stLayer));
+  const a=cur.m.pts[0],z=cur.m.pts[cur.m.pts.length-1];
+  L.marker([a[0],a[1]],{icon:L.divIcon({className:'pin',html:'<div style="background:var(--green);width:18px;height:18px"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(state.layers);
+  L.marker([z[0],z[1]],{icon:L.divIcon({className:'pin',html:'<div style="background:var(--red);width:18px;height:18px"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(state.layers);
+  if(!nav.active){const bounds=L.latLngBounds(cur.m.pts.map(q=>[q[0],q[1]]));const wide=innerWidth>=760;map.fitBounds(bounds,{paddingTopLeft:[wide?430:20,40],paddingBottomRight:[60,wide?40:Math.min(innerHeight*0.55,420)]})}
+}
+function drawJams(m,layer){
+  for(const [a,b,r] of m.jams||[]){L.polyline(m.pts.slice(a,b+1).map(q=>[q[0],q[1]]),{color:r<0.5?'#ff3b30':'#ff9500',weight:6,opacity:1,interactive:false}).addTo(layer)}
+}
+function selectRoute(k){if(!state.plans[k])return;state.sel=k;drawRoutes();renderResults()}
+function trafLine(m){
+  const bits=[];
+  if(m.engine==='here')bits.push(m.delaySec>=120?`<span style="color:${m.delaySec>=600?'var(--red)':'var(--orange)'}">● Trafic : +${fmtDur(m.delaySec)}</span>`:'<span style="color:var(--green)">● Trafic fluide</span>');
+  if(m.authFailed)bits.push('<span style="color:var(--orange)">⚠︎ Voies réservées non prises en compte</span>');
+  else if(m.hereMode&&m.hereMode!=='car'){
+    const lbl=m.hereMode==='bus'?'🚌 Voies bus':'🚕 Voies bus-taxi';
+    if(m.authGain==null)bits.push(lbl);
+    else if(m.authGain>=60)bits.push(`<span style="color:var(--green)">${lbl} : −${fmtDur(m.authGain)} vs classique</span>`);
+    else if(m.authGain<=-60)bits.push(`${lbl} : +${fmtDur(-m.authGain)} vs classique (vitesses ${m.hereMode==='bus'?'bus':'réduites'})`);
+    else bits.push(`${lbl} : pas de gain sur ce trajet`);
+  }
+  if(m.notices?.length)bits.push('<span style="color:var(--orange)">⚠︎ '+esc(m.notices[0])+'</span>');
+  if(m.cityInfo?.type==='bypass')bits.push(`Contourne le centre-ville${m.cityInfo.delta>=60?' (+'+fmtDur(m.cityInfo.delta)+')':''}`);
+  if(m.cityInfo?.type==='through')bits.push(`Traverse le centre-ville (−${fmtDur(m.cityInfo.delta)})`);
+  return bits.length?`<div class="rc-sub" style="margin-top:-6px">${bits.join(' · ')}</div>`:'';
+}
+function card(k,title){
+  const p=state.plans[k];if(!p)return '';
+  const other=state.plans[k==='toll'?'free':'toll'];
+  let badge='';if(other){if(p.totalSec<=other.totalSec)badge='<span class="badge b">Le plus rapide</span>';else if(p.total<other.total)badge='<span class="badge">Le moins cher</span>'}
+  const ns=p.stops.length;
+  return `<div class="rcard ${state.sel===k?'sel':''}" data-k="${k}">
+    <div class="rc-head"><span class="rc-title">${title}</span>${badge}</div>
+    <div class="rc-time">${fmtDur(p.totalSec)}</div>
+    <div class="rc-sub">${fmtKm(p.m.km)} · ${ns?ns+' recharge'+(ns>1?'s':'')+' ('+fmtDur(p.chargeSec)+')':'sans recharge'} · arrivée ${Math.max(0,Math.round(p.arrSoc))} %${p.m.same?' · identique au trajet autoroute':''}</div>
+    ${trafLine(p.m)}
+    <div class="rc-grid"><div><small>Électricité</small><b>${euro(p.elec)}</b></div><div><small>Péage${p.tollReal?'':' (est.)'}</small><b>${euro(p.tollCost)}</b></div><div><small>Total</small><b>${euro(p.total)}</b></div></div>
+    ${p.warn?`<div class="warn">⚠︎ ${esc(p.warn)}</div>`:''}
+  </div>`;
+}
+function renderResults(){
+  const pl=state.plans,cur=pl[state.sel];
+  let h='<div class="group-title" style="margin-left:4px">Itinéraires</div>'+card('toll','Par autoroute')+(pl.free?card('free','Sans péage'):'<div class="group-foot">Itinéraire sans péage indisponible.</div>');
+  h+=`<button class="btn green" id="bStart">Démarrer le guidage</button>`;
+  h+=`<div class="group-title" style="margin-left:4px">Ouvrir dans (CarPlay / Android Auto)</div>
+  <div class="ext">
+    <button data-x="apple"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 00-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 00-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z"/></svg>Plans</button>
+    <button data-x="google"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.7 11.3l-9-9a1 1 0 00-1.4 0l-9 9a1 1 0 000 1.4l9 9a1 1 0 001.4 0l9-9a1 1 0 000-1.4zM14 14.5V12h-4v3H8v-4a1 1 0 011-1h5V7.5l3.5 3.5z"/></svg>Google Maps</button>
+    <button data-x="waze"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C7 3 3 6.6 3 11c0 1.6.5 3 1.5 4.3-.3 1-.9 1.8-1.7 2.3 1.6.3 3-.2 4-1C8.5 17.5 10.2 18 12 18c5 0 9-3.4 9-7.5S17 3 12 3zm-3 7a1 1 0 110-2 1 1 0 010 2zm6 0a1 1 0 110-2 1 1 0 010 2z"/></svg>Waze</button>
+  </div>
+  <div class="group-foot">Envoie le trajet sélectionné avec les bornes en étapes (Google Maps) ou jusqu’à la prochaine étape (Plans, Waze), pour un guidage sur l’écran de la voiture.</div>`;
+  if(cur.stops.length){
+    h+='<div class="group-title" style="margin-left:4px">Arrêts recharge</div><div class="group">'+cur.stops.map((st,i)=>`<div class="stop" data-i="${i}"><div class="num" style="background:${BR[st.s.b].c}">${i+1}</div><div><div class="t">${esc(st.s.name)}</div>
+      <div class="s">${esc(BR[st.s.b].n)} · ${Math.round(st.s.pw)} kW${st.s.est?' (est.)':''} · km ${Math.round(st.km)}${st.s.off>0.4?' · détour '+fmtKm(st.s.off):''}<br>
+      ${Math.round(st.socIn)} % → ${Math.round(st.socOut)} % · ${Math.round(st.add)} kWh · ${fmtDur(st.chargeSec)}<br>
+      <b style="color:var(--text)">${euro(st.cost)}</b> · ${st.price.toFixed(2).replace('.',',')} €/kWh (${st.src})</div></div></div>`).join('')+'</div>';
+  }
+  h+=`<div class="group-foot" style="margin-top:6px">Électricité : ${euro(cur.chargeCost)} en recharge${P.homeOn?' + '+euro(cur.homeCost)+' de batterie de départ (tarif domicile)':''}. ${cur.tollReal?'Péage : tarif réel HERE (classe 1).':'Péage estimé à '+(+P.toll).toFixed(3).replace('.',',')+' €/km.'}${cur.m.engine==='osrm'?' Itinéraire sans trafic (ajoutez une clé HERE).':''} Énergie totale ≈ ${Math.round(cur.m.kwh)} kWh.</div>`;
+  $('#results').innerHTML=h;
+  document.querySelectorAll('.rcard').forEach(el=>el.onclick=()=>selectRoute(el.dataset.k));
+  document.querySelectorAll('.stop').forEach(el=>el.onclick=()=>{const st=cur.stops[+el.dataset.i];map.setView([st.s.lat,st.s.lon],14);if(innerWidth<760)$('#sheet').classList.add('min')});
+  document.querySelectorAll('.ext button').forEach(el=>el.onclick=()=>openExternal(el.dataset.x));
+  $('#bStart').onclick=startNav;
+}
+
+/* ---------------- Export vers apps de navigation (CarPlay / Android Auto) ---------------- */
+function openExternal(app){
+  const p=state.plans[state.sel];const dest=state.to;
+  let curKm=nav.active?nav.km:0;
+  const next=p.stops.find(s=>s.km>curKm+0.3);
+  const tgt=next?{lat:next.s.lat,lon:next.s.lon}:dest;
+  const noToll=state.sel==='free';
+  let url;
+  if(app==='google'){
+    const wps=p.stops.filter(s=>s.km>curKm+0.3).slice(0,8).map(s=>s.s.lat.toFixed(6)+','+s.s.lon.toFixed(6)).join('|');
+    url=`https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lon}&travelmode=driving&dir_action=navigate`+(wps?'&waypoints='+encodeURIComponent(wps):'');
+    if(noToll)toast('Dans Google Maps, activez « Éviter les péages » dans les options.',4500);
+  }else if(app==='apple'){
+    url=`https://maps.apple.com/?daddr=${tgt.lat},${tgt.lon}&dirflg=d`;
+    if(next)toast('Plans : guidage jusqu’à la prochaine borne. Relancez après la recharge.',4500);
+  }else{
+    url=`https://waze.com/ul?ll=${tgt.lat},${tgt.lon}&navigate=yes`;
+    if(next)toast('Waze : guidage jusqu’à la prochaine borne. Relancez après la recharge.',4500);
+  }
+  window.location.href=url;
+}
+
+/* ---------------- Bornes autour (zone visible) ---------------- */
+$('#bNearby').onclick=async()=>{
+  if(map.getZoom()<10)return toast('Zoomez davantage pour afficher les bornes de la zone');
+  const b=map.getBounds();loading(true,'Recherche des bornes…');
+  try{
+    const j=await overpass(`[out:json][timeout:60];nwr["amenity"="charging_station"](${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()});out center tags;`);
+    const st=parseStations(j.elements).filter(passFilter);
+    state.nearLayer.clearLayers();
+    st.forEach(s=>L.circleMarker([s.lat,s.lon],{radius:7,color:'#fff',weight:2,fillColor:BR[s.b].c,fillOpacity:1}).bindPopup(stationPopup(s,`<br><a href="#" onclick="goTo(${s.lat},${s.lon},'${esc(s.name).replace(/'/g,'’')}');return false">Itinéraire vers cette borne</a>`)).addTo(state.nearLayer));
+    toast(st.length+' borne(s) correspondant à vos filtres');
+  }catch(e){toast('Serveur des bornes indisponible, réessayez.')}
+  finally{loading(false)}
+};
+window.goTo=(lat,lon,name)=>{state.to={label:name,lat,lon};$('#to').value=name;map.closePopup();$('#sheet').classList.remove('min');if(!state.from)useMyPos()};
+
+/* ---------------- Guidage ---------------- */
+const nav={active:false};
+const DIRS={left:'à gauche',right:'à droite','slight left':'légèrement à gauche','slight right':'légèrement à droite','sharp left':'franchement à gauche','sharp right':'franchement à droite',straight:'tout droit',uturn:'demi-tour'};
+const ROT={straight:0,'slight right':45,right:90,'sharp right':135,uturn:200,'sharp left':-135,left:-90,'slight left':-45};
+const ORD=['','1re','2e','3e','4e','5e','6e','7e','8e'];
+function roadOf(s){return [s.ref,s.name].filter(Boolean).join(' · ')}
+function instr(s){
+  const m=s.maneuver,d=DIRS[m.modifier]||'',road=s.name||s.ref||'',dest=s.destinations?(' direction '+s.destinations.split(':').pop().trim()):'';
+  switch(m.type){
+    case 'depart':return 'Partez'+(road?' sur '+road:'');
+    case 'arrive':return 'Arrivée à destination';
+    case 'roundabout':case 'rotary':return `Au rond-point, prenez la ${ORD[m.exit]||m.exit+'e'} sortie`+(road?' vers '+road:'');
+    case 'exit roundabout':case 'exit rotary':return 'Quittez le rond-point'+(road?' vers '+road:'');
+    case 'on ramp':return `Prenez la bretelle ${d}`.trim()+(dest||(road?' vers '+road:''));
+    case 'off ramp':return `Prenez la sortie ${d}`.trim()+(dest||(road?' vers '+road:''));
+    case 'fork':return `Restez ${d}`+(dest||(road?' vers '+road:''));
+    case 'merge':return `Insérez-vous ${d}`+(road?' sur '+road:'');
+    case 'end of road':return `Au bout de la route, tournez ${d}`+(road?' sur '+road:'');
+    case 'continue':return m.modifier==='uturn'?'Faites demi-tour':(m.modifier&&m.modifier!=='straight'?`Continuez ${d}`:'Continuez tout droit')+(road?' sur '+road:'');
+    case 'new name':return 'Continuez'+(road?' sur '+road:'');
+    default:return (m.modifier==='uturn'?'Faites demi-tour':m.modifier==='straight'?'Continuez tout droit':`Tournez ${d}`)+(road?' sur '+road:'');
+  }
+}
+function arrowSvg(s){
+  const m=s.maneuver;
+  if(m.type==='arrive')return '<svg viewBox="0 0 24 24" fill="#fff"><path d="M5 21V3h2v1h12l-2 4 2 4H7v9z"/></svg>';
+  if(m.type==='roundabout'||m.type==='rotary')return '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="10" r="4"/><path d="M12 14v8M16 10h5M18 8l3 2-3 2"/></svg>';
+  const r=ROT[m.modifier]??0;
+  return `<svg viewBox="0 0 24 24" style="transform:rotate(${r}deg)"><path d="M12 2l7 8h-4.5v12h-5V10H5z" fill="#fff"/></svg>`;
+}
+function speak(t){if(!nav.voice||!('speechSynthesis' in window))return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='fr-FR';u.rate=1.02;speechSynthesis.speak(u)}catch(e){}}
+function vocalDist(m){return m>=1000?(m>=1500?'Dans '+(Math.round(m/500)/2).toString().replace('.',' virgule ')+' kilomètres':'Dans 1 kilomètre'):'Dans '+Math.round(m/50)*50+' mètres'}
+
+async function startNav(){
+  const p=state.plans[state.sel];
+  Object.assign(nav,{active:true,p,m:p.m,idx:0,stepI:0,km:0,said:{},off:0,voice:nav.voice??true,last:null,extraDelay:0,jamSaid:0});
+  $('#sheet').classList.add('hidden');$('#fabs').classList.add('hidden');
+  $('#navTop').classList.remove('hidden');$('#navBottom').classList.remove('hidden');
+  $('#bVoice').textContent=nav.voice?'🔊 Voix':'🔇 Muet';
+  try{nav.wake=await navigator.wakeLock?.request('screen')}catch(e){}
+  speak(p.m.steps[0].text);
+  if(P.here?.trim()){nav.trafPoll=setInterval(navTraffic,120000)}
+  if(P.live.prov!=='none'){nav.livePoll=setInterval(navLive,180000);setTimeout(navLive,5000)}
+  if(navigator.geolocation){nav.watch=navigator.geolocation.watchPosition(pos=>{if(!nav.sim)onPos(pos.coords.latitude,pos.coords.longitude,pos.coords.heading,pos.coords.speed,pos.coords.accuracy)},e=>toast('GPS : '+(e.message||'indisponible')+' — utilisez « Simuler » pour tester.',5000),{enableHighAccuracy:true,maximumAge:1000,timeout:20000})}
+  const a=p.m.pts[0];map.setView([a[0],a[1]],16);updateNavUI(a[0],a[1],null);
+}
+function stopNav(){
+  nav.active=false;if(nav.watch!=null)navigator.geolocation.clearWatch(nav.watch);nav.watch=null;
+  if(nav.sim){clearInterval(nav.sim);nav.sim=null}
+  if(nav.livePoll){clearInterval(nav.livePoll);nav.livePoll=null}
+  if(nav.trafPoll){clearInterval(nav.trafPoll);nav.trafPoll=null}nav.jamLayer?.clearLayers();nav.realSoc=null;
+  try{nav.wake?.release()}catch(e){}
+  try{speechSynthesis.cancel()}catch(e){}
+  $('#sheet').classList.remove('hidden');$('#fabs').classList.remove('hidden');
+  $('#navTop').classList.add('hidden');$('#navBottom').classList.add('hidden');
+  if(state.me){map.removeLayer(state.me);state.me=null}
+  drawRoutes();
+}
+$('#bEnd').onclick=stopNav;
+$('#bVoice').onclick=()=>{nav.voice=!nav.voice;$('#bVoice').textContent=nav.voice?'🔊 Voix':'🔇 Muet';if(nav.voice)speak('Guidage vocal activé')};
+$('#bSim').onclick=()=>{
+  if(nav.sim){clearInterval(nav.sim);nav.sim=null;$('#bSim').textContent='Simuler';return}
+  $('#bSim').textContent='Pause';let simKm=nav.km||0;
+  nav.sim=setInterval(()=>{
+    const pts=nav.m.pts;let i=Math.max(0,nav.idx-2);while(i<pts.length-1&&pts[i+1][2]<simKm)i++;
+    const a=pts[i],b=pts[Math.min(i+1,pts.length-1)];
+    const segKm=b[2]-a[2],segSec=b[4]-a[4];const v=segSec>0?segKm/segSec:0.02;
+    simKm+=v*8; // x8 accéléré
+    const f=segKm>0?Math.min(1,(simKm-a[2])/segKm):0;
+    const lat=a[0]+(b[0]-a[0])*f,lon=a[1]+(b[1]-a[1])*f;
+    const hd=Math.atan2((b[1]-a[1])*Math.cos(a[0]*D2R),b[0]-a[0])/D2R;
+    onPos(lat,lon,(hd+360)%360,v*1000,5);
+    if(simKm>=nav.m.km){clearInterval(nav.sim);nav.sim=null;$('#bSim').textContent='Simuler'}
+  },1000);
+};
+function project(lat,lon,a,b){
+  const cos=Math.cos(lat*D2R),K=111320;
+  const ax=(a[1]-lon)*cos*K,ay=(a[0]-lat)*K,bx=(b[1]-lon)*cos*K,by=(b[0]-lat)*K;
+  const dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;let t=l2?-(ax*dx+ay*dy)/l2:0;t=Math.max(0,Math.min(1,t));
+  return [Math.hypot(ax+t*dx,ay+t*dy),t];
+}
+function onPos(lat,lon,heading,speed,acc){
+  if(!nav.active)return;
+  const pts=nav.m.pts;let best=1e12,bi=nav.idx,bt=0;
+  const from=Math.max(0,nav.idx-40),to=Math.min(pts.length-1,nav.idx+4000);
+  for(let i=from;i<to;i++){const [d,t]=project(lat,lon,pts[i],pts[i+1]);if(d<best){best=d;bi=i;bt=t}}
+  if(best>300&&nav.idx===0){for(let i=0;i<pts.length-1;i++){const [d,t]=project(lat,lon,pts[i],pts[i+1]);if(d<best){best=d;bi=i;bt=t}}}
+  if(best>Math.max(60,(acc||20)*1.5)){nav.off++;if(nav.off>=4&&!nav.rerouting){reroute(lat,lon);return}}else nav.off=0;
+  nav.idx=bi;const a=pts[bi],b=pts[Math.min(bi+1,pts.length-1)];
+  nav.km=a[2]+(b[2]-a[2])*bt;nav.kwh=a[3]+(b[3]-a[3])*bt;nav.sec=a[4]+(b[4]-a[4])*bt;
+  if(heading==null&&nav.last){heading=(Math.atan2((lon-nav.last[1])*Math.cos(lat*D2R),lat-nav.last[0])/D2R+360)%360}
+  nav.last=[lat,lon];
+  updateNavUI(lat,lon,heading,speed);
+}
+function updateNavUI(lat,lon,heading,speed){
+  const m=nav.m,steps=m.steps;
+  showMe(lat,lon,heading,true);
+  let si=nav.stepI;while(si<steps.length-1&&steps[si]._end<=nav.idx)si++;nav.stepI=si;
+  const nxt=steps[Math.min(si+1,steps.length-1)];
+  const distM=Math.max(0,(m.pts[nxt._start][2]-(nav.km||0))*1000);
+  $('#navArrow').innerHTML=arrowSvg(nxt);
+  $('#navDist').textContent=distM>=1000?(distM/1000).toFixed(distM>=10000?0:1).replace('.',',')+' km':Math.round(distM/10)*10+' m';
+  $('#navInstr').textContent=nxt.text;
+  $('#navRoad').textContent=steps[si].road?'Sur '+steps[si].road:'';
+  // annonces vocales
+  const th=steps[si]._motor?[2000,800,250]:[600,200,40];
+  nav.said[si+1]=nav.said[si+1]||{};
+  for(const t of th){if(distM<=t&&!nav.said[si+1][t]){nav.said[si+1][t]=1;speak(t===th[2]?nxt.text:vocalDist(distM)+', '+nxt.text.replace(/^./,c=>c.toLowerCase()));break}}
+  // stats
+  const pl=nav.p,remKm=m.km-(nav.km||0);
+  const ahead=pl.stops.filter(s=>s.km>(nav.km||0)+0.3);
+  const remSec=m.sec-(nav.sec||0)+(nav.extraDelay||0)+ahead.reduce((a,s)=>a+s.chargeSec+s.detourSec,0);
+  const eta=new Date(Date.now()+remSec*1000);
+  $('#nbEta').textContent=eta.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  $('#nbRem').textContent=fmtKm(remKm);
+  if(nav.realSoc!=null&&Date.now()-nav.realAt<200000){const est=nav.realSoc-((nav.kwh||0)-(nav.realKwh??nav.kwh??0))/(+P.cap)*100;$('#nbSoc').textContent=Math.max(0,Math.round(est))+' % ●'}
+  else $('#nbSoc').textContent=Math.max(0,Math.round(socAt(pl,nav.kwh||0)))+' %';
+  const nb=$('#nbNext');
+  if(ahead.length){const s=ahead[0];nb.classList.remove('hidden');nb.innerHTML=`<div class="num" style="background:${BR[s.s.b].c}">⚡</div><div><b>${esc(s.s.name)}</b><br><span style="color:var(--text2)">dans ${fmtKm(s.km-(nav.km||0))} · ${Math.round(s.s.pw)} kW · recharge ${Math.round(s.socIn)} → ${Math.round(s.socOut)} %</span></div>`;
+    if(s.km-(nav.km||0)<2&&!nav.said['st'+s.km]){nav.said['st'+s.km]=1;speak('Arrêt recharge dans 2 kilomètres : '+s.s.name)}}
+  else nb.classList.add('hidden');
+  if(remKm<0.03||(si>=steps.length-1&&distM<30)){speak('Vous êtes arrivé à destination');toast('Arrivé à destination 🎉');stopNav();return}
+  const z=steps[si]._motor?14:16;
+  map.setView([lat,lon],Math.max(map.getZoom()<12?z:map.getZoom(),12),{animate:true});
+}
+async function navLive(){
+  if(!nav.active)return;
+  const v=await liveRefresh(true);if(!v||v.soc==null)return;
+  nav.realSoc=v.soc;nav.realAt=Date.now();nav.realKwh=nav.kwh||0;
+  const planned=socAt(nav.p,nav.kwh||0);
+  $('#nbSoc').textContent=Math.round(v.soc)+' % ●';
+  if(Math.abs(planned-v.soc)>6&&nav.last&&!nav.rerouting){
+    toast(`Batterie réelle ${Math.round(v.soc)} % (prévu ${Math.round(planned)} %) : recalcul des recharges`,5000);
+    speak('Niveau de batterie différent de la prévision, recalcul des recharges');
+    reroute(nav.last[0],nav.last[1],v.soc);
+  }
+}
+// Trafic en direct : toutes les 2 min, compare l'itinéraire suivi (avec trafic actuel) aux alternatives.
+function overlapRatio(m,sample){
+  let hit=0;const lim=(80/111320)**2;
+  for(const p of sample){const cos=Math.cos(p[0]*D2R);let ok=false;for(let i=0;i<m.pts.length;i++){const dy=m.pts[i][0]-p[0],dx=(m.pts[i][1]-p[1])*cos;if(dy*dy+dx*dx<lim){ok=true;break}}if(ok)hit++}
+  return sample.length?hit/sample.length:0;
+}
+async function navTraffic(){
+  if(!nav.active||!nav.last||nav.rerouting||nav.sim)return;
+  try{
+    const [lat,lon]=nav.last;
+    const models=await hereRoutes({lat,lon},state.to,state.sel==='free',2);
+    const rem=nav.m.pts.slice(nav.idx);const step=Math.max(1,Math.floor(rem.length/40));const sample=rem.filter((_,i)=>i%step===0);
+    let matched=null,bestOv=0;for(const m of models){const o=overlapRatio(m,sample);if(o>bestOv){bestOv=o;matched=m}}
+    if(bestOv<0.85)matched=null;
+    const plannedRem=nav.m.sec-(nav.sec||0);
+    const curLive=matched?matched.sec:plannedRem+(nav.extraDelay||0);
+    const best=chooseRoute(models);
+    const thr=(+P.trafThr||10)*60;
+    if(best!==matched&&curLive-best.sec>=thr){
+      const gain=curLive-best.sec;
+      const soc=nav.realSoc??socAt(nav.p,nav.kwh||0);
+      const p=plan(best,Math.max(1,soc));state.plans[state.sel]=p;
+      Object.assign(nav,{p,m:best,idx:0,stepI:0,km:0,kwh:0,sec:0,said:{},off:0,extraDelay:0,jamSaid:0});
+      drawRoutes();
+      toast(`Ralentissement : nouvel itinéraire, ${fmtDur(gain)} gagnées`,6000);
+      speak(`Ralentissement sur votre itinéraire. Nouvel itinéraire plus rapide, vous gagnez ${Math.round(gain/60)} minutes.`);
+      return;
+    }
+    const delay=curLive-plannedRem;nav.extraDelay=Math.max(0,delay);
+    if(matched){nav.jamLayer=nav.jamLayer||L.layerGroup().addTo(map);nav.jamLayer.clearLayers();drawJams(matched,nav.jamLayer)}
+    if(delay>=thr&&(!nav.jamSaid||delay-nav.jamSaid>=300)){nav.jamSaid=delay;toast(`Ralentissement de ${fmtDur(delay)} : votre itinéraire reste le plus rapide`,6000);speak(`Ralentissement de ${Math.round(delay/60)} minutes sur votre trajet. Votre itinéraire reste le plus rapide.`)}
+  }catch(e){}
+}
+async function reroute(lat,lon,forceSoc){
+  nav.rerouting=true;speak('Recalcul de l’itinéraire');toast('Recalcul de l’itinéraire…');
+  try{
+    const soc=forceSoc??socAt(nav.p,nav.kwh||0);
+    const m=chooseRoute(await getRoutes({lat,lon},state.to,state.sel==='free'));const p=plan(m,Math.max(1,soc));
+    state.plans[state.sel]=p;Object.assign(nav,{p,m,idx:0,stepI:0,km:0,kwh:0,sec:0,said:{},off:0,extraDelay:0});
+    drawRoutes();
+  }catch(e){toast('Recalcul impossible, nouvel essai bientôt')}
+  finally{nav.rerouting=false}
+}
+
+/* ---------------- Profil / filtres (UI) ---------------- */
+function openModal(id){$('#'+id).classList.add('open')}
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{$('#'+b.dataset.close).classList.remove('open');save('er_profile',P);save('er_filters',F);replan()});
+$('#bProfile').onclick=()=>{fillProfile();openModal('mProfile')};
+$('#bFilters').onclick=()=>{fillFilters();openModal('mFilters')};
+$('#pCar').innerHTML=CARS.map((c,i)=>`<option value="${i}">${esc(c[0])}</option>`).join('');
+const PF={pCityThr:'cityThr',pTrafThr:'trafThr',pCap:'cap',pMaxKw:'maxKw',pConsNat:'consNat',pConsHwy:'consHwy',pWinter:'winter',pMin:'min',pTarget:'target',pDetour:'detour',pHome:'home',pToll:'toll'};
+const LF={lWorker:'worker',lKey:'key',lHa:'ha',lHaTok:'haTok',lHaSoc:'haSoc',lHaRange:'haRange',lHaLoc:'haLoc'};
+for(const [id,k] of Object.entries(LF))$('#'+id).addEventListener('input',e=>{P.live[k]=e.target.value.trim()});
+function fillLive(){
+  const pv=P.live.prov;
+  document.querySelectorAll('#segLive button').forEach(b=>b.classList.toggle('on',b.dataset.v===pv));
+  $('#liveEnode').classList.toggle('hidden',pv!=='enode');$('#liveHA').classList.toggle('hidden',pv!=='ha');
+  $('#liveTestG').classList.toggle('hidden',pv==='none');$('#liveFoot').classList.toggle('hidden',pv==='none');
+  for(const [id,k] of Object.entries(LF))$('#'+id).value=P.live[k]||'';
+}
+document.querySelectorAll('#segLive button').forEach(b=>b.onclick=()=>{P.live.prov=b.dataset.v;fillLive();save('er_profile',P);liveRefresh(true)});
+$('#bLiveTest').onclick=async()=>{save('er_profile',P);$('#liveStatus').textContent='Lecture…';const v=await liveRefresh(true);$('#liveStatus').innerHTML=v?liveLabel(v):'<span style="color:var(--orange)">'+($('#liveTxt').textContent||'Échec')+'</span>'};
+$('#bLink').onclick=async()=>{
+  save('er_profile',P);
+  if(!P.live.worker)return toast('Renseignez l’URL du Worker');
+  try{
+    loading(true,'Ouverture d’Enode…');
+    const r=await fetchJSON(trimUrl(P.live.worker)+'/link?user='+UID,{method:'POST',headers:{'X-App-Key':P.live.key||'','Content-Type':'application/json'},body:JSON.stringify({redirectUri:location.origin+location.pathname+'?enode=linked'})},15000);
+    if(!r.linkUrl)throw new Error(r.error||r.title||'réponse inattendue');
+    location.href=r.linkUrl;
+  }catch(e){loading(false);toast('Connexion impossible : '+e.message,5000)}
+};
+function fillSegs(){
+  document.querySelectorAll('#segMode button').forEach(b=>b.classList.toggle('on',b.dataset.v===P.mode));
+  document.querySelectorAll('#segAuth button').forEach(b=>b.classList.toggle('on',b.dataset.v===P.auth));
+  document.querySelectorAll('#segCity button').forEach(b=>b.classList.toggle('on',b.dataset.v===P.city));
+}
+[['segMode','mode'],['segAuth','auth'],['segCity','city']].forEach(([id,k])=>document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{P[k]=b.dataset.v;fillSegs();save('er_profile',P);if(k==='mode'&&state.models&&!nav.active)$('#bGo').click();if(k==='mode'&&b.dataset.v==='auth'&&!P.here?.trim())toast('Ajoutez une clé HERE dans le Profil pour les voies réservées.',4500)}));
+$('#pHere').addEventListener('input',e=>{P.here=e.target.value.trim()});
+fillSegs();
+function fillProfile(){
+  fillLive();fillSegs();$('#pHere').value=P.here||'';
+  $('#pCar').value=P.car;for(const [id,k] of Object.entries(PF))$('#'+id).value=P[k];$('#pHomeOn').checked=!!P.homeOn;
+  $('#pSubs').innerHTML=BRANDS.filter(b=>b.k!=='other').map(b=>`<div class="row"><span class="bdot" style="background:${b.c}"></span><label>${esc(b.n)}</label><input type="number" step="0.01" inputmode="decimal" data-sub="${b.k}" placeholder="${b.p.toFixed(2)}" value="${P.subs?.[b.k]??''}"><span class="unit">€/kWh</span></div>`).join('');
+  document.querySelectorAll('[data-sub]').forEach(el=>el.oninput=()=>{P.subs=P.subs||{};const v=el.value.trim();if(v)P.subs[el.dataset.sub]=v;else delete P.subs[el.dataset.sub]});
+}
+$('#pCar').onchange=e=>{const c=CARS[+e.target.value];P.car=+e.target.value;[P.cap,P.consNat,P.consHwy,P.maxKw]=[c[1],c[2],c[3],c[4]];fillProfile()};
+for(const [id,k] of Object.entries(PF))$('#'+id).addEventListener('input',e=>{const v=parseFloat(String(e.target.value).replace(',','.'));if(!isNaN(v))P[k]=v});
+$('#pHomeOn').onchange=e=>P.homeOn=e.target.checked;
+document.querySelectorAll('#segTheme button').forEach(b=>b.onclick=()=>{P.theme=b.dataset.v;save('er_profile',P);applyTheme()});
+function fillFilters(){
+  document.querySelectorAll('#segPower button').forEach(b=>b.classList.toggle('on',+b.dataset.v===+F.minPower));
+  $('#fShow').checked=!!F.show;
+  $('#fBrands').innerHTML=BRANDS.map(b=>`<div class="row"><span class="bdot" style="background:${b.c}"></span><label>${esc(b.n)}</label><label class="sw" style="flex:none"><input type="checkbox" data-b="${b.k}" ${F.brands[b.k]!==false?'checked':''}><span></span></label></div>`).join('');
+  document.querySelectorAll('[data-b]').forEach(el=>el.onchange=()=>F.brands[el.dataset.b]=el.checked);
+  const all=BRANDS.every(b=>F.brands[b.k]!==false);$('#fAll').textContent=all?'Aucun':'Tout';
+}
+document.querySelectorAll('#segPower button').forEach(b=>b.onclick=()=>{F.minPower=+b.dataset.v;fillFilters()});
+$('#fShow').onchange=e=>F.show=e.target.checked;
+$('#fAll').onclick=()=>{const all=BRANDS.every(b=>F.brands[b.k]!==false);BRANDS.forEach(b=>F.brands[b.k]=!all);fillFilters()};
+$('#socRange').value=P.soc0;$('#socVal').textContent=P.soc0+' %';
+$('#socRange').oninput=e=>{P.soc0=+e.target.value;$('#socVal').textContent=P.soc0+' %'};
+$('#socRange').onchange=()=>{save('er_profile',P);replan()};
+
+/* ---------------- Démarrage ---------------- */
+getPos({timeout:8000}).then(p=>{if(!state.from){state.from={label:'Ma position',lat:p.coords.latitude,lon:p.coords.longitude};$('#from').value='Ma position'}map.setView([p.coords.latitude,p.coords.longitude],11);showMe(p.coords.latitude,p.coords.longitude)}).catch(()=>{});
+if(/[?&]enode=linked/.test(location.search)){history.replaceState(null,'',location.pathname);toast('Véhicule connecté via Enode ✓')}
+if(P.live.prov!=='none')liveRefresh(true);
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>

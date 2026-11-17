@@ -1,0 +1,52 @@
+ÉlecRoute – mise en ligne (5 minutes)
+
+1. Sur GitHub, créez un dépôt (ex. elecroute) et déposez-y les 6 fichiers :
+   index.html, manifest.webmanifest, sw.js, icon-192.png, icon-512.png, LISEZMOI.txt
+2. Settings > Pages > Source : "Deploy from a branch", branche main, dossier / (root) > Save.
+3. Ouvrez https://VOTRE-PSEUDO.github.io/elecroute/ sur le téléphone.
+   - iPhone (Safari) : Partager > "Sur l'écran d'accueil"
+   - Android (Chrome) : menu ⋮ > "Installer l'application"
+4. Autorisez la localisation au premier lancement (HTTPS obligatoire, d'où GitHub Pages).
+
+TRAFIC EN TEMPS RÉEL ET VÉHICULE AUTORISÉ (clé HERE)
+ 1. Créez un compte gratuit sur https://platform.here.com (offre de base avec quota mensuel gratuit).
+ 2. Access Manager > Apps > créez une app > "Create API key".
+ 3. Dans ÉlecRoute : Profil > Itinéraire et trafic > collez la clé.
+ Conseil : dans HERE, limitez la clé à votre adresse GitHub Pages (restriction par domaine).
+ Ce que ça active : trafic en direct, recalcul automatique en route si un itinéraire fait
+ gagner plus de 10 min (réglable), voies bus/taxi en mode "Véhicule autorisé", prix réels des péages.
+
+Sources utilisées (gratuites, sans clé) :
+- Itinéraires : OSRM (serveur public OpenStreetMap)
+- Bornes : OpenStreetMap via Overpass
+- Adresses : Base Adresse Nationale + Photon
+- Fond de carte : CARTO Voyager (clair) / Dark Matter (sombre)
+
+CarPlay / Android Auto : les boutons "Plans", "Google Maps" et "Waze" envoient le trajet
+(avec les bornes en étapes) vers ces apps, qui s'affichent sur l'écran de la voiture.
+
+------------------------------------------------------------
+DONNÉES DU VÉHICULE EN TEMPS RÉEL (batterie, autonomie, position)
+------------------------------------------------------------
+Deux options dans Profil > Véhicule connecté.
+
+A) ENODE (API officielle, multi-marques dont Hyundai)
+ 1. Créez un compte développeur sur https://developers.enode.com
+    -> récupérez client_id et client_secret (environnement Sandbox pour tester ;
+       l'accès Production, avec votre vraie voiture, se demande à Enode).
+ 2. Créez un Worker gratuit sur https://dash.cloudflare.com (Workers & Pages > Create > Worker),
+    collez le contenu de worker.js, puis Deploy.
+ 3. Dans Settings > Variables and Secrets du Worker, ajoutez :
+      ENODE_CLIENT_ID, ENODE_CLIENT_SECRET, ENODE_ENV (sandbox ou production),
+      APP_KEY (un mot de passe de votre choix), ALLOWED_ORIGIN (https://votre-pseudo.github.io)
+ 4. Dans l'app : Profil > Véhicule connecté > Enode, collez l'URL du Worker et l'APP_KEY,
+    puis "Connecter mon véhicule" et identifiez-vous avec votre compte Hyundai (Bluelink).
+
+B) HOME ASSISTANT (si vous l'utilisez déjà avec l'intégration Kia/Hyundai "kia_uvo")
+ 1. Dans configuration.yaml de Home Assistant, autorisez l'app :
+      http:
+        cors_allowed_origins:
+          - https://votre-pseudo.github.io
+ 2. Profil HA > Sécurité > Jetons d'accès longue durée > Créer un jeton.
+ 3. Dans l'app : URL de Home Assistant (accessible depuis l'extérieur, en HTTPS), jeton,
+    et le nom de l'entité batterie (ex. sensor.ioniq_5_ev_battery_level).
