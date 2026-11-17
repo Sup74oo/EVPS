@@ -628,15 +628,41 @@ function chooseRoute(models){
 
 /* ---------------- Bornes (Overpass / OSM) ---------------- */
 const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter'];
-async function overpass(q){
-  let err;for(const ep of OVERPASS){try{return await fetchJSON(ep,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)},95000)}catch(e){err=e}}throw err;
+// Interroge les serveurs Overpass en décalé (0 s, 6 s, 12 s) : le premier qui répond gagne, les autres sont annulés.
+function overpass(q,ms=35000){
+  return new Promise((resolve,reject)=>{
+    const ctrls=[];let done=false,fails=0;const timers=[];
+    const finish=(ok,v)=>{if(done)return;done=true;timers.forEach(clearTimeout);ctrls.forEach(c=>c.abort());ok?resolve(v):reject(v)};
+    OVERPASS.forEach((ep,i)=>timers.push(setTimeout(async()=>{
+      if(done)return;const c=new AbortController();ctrls.push(c);const t=setTimeout(()=>c.abort(),ms);
+      try{const r=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q),signal:c.signal});
+        if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();clearTimeout(t);if(!done){const k=OVERPASS.indexOf(ep);if(k>0){OVERPASS.splice(k,1);OVERPASS.unshift(ep)}}finish(true,j)}
+      catch(e){clearTimeout(t);if(++fails===OVERPASS.length)finish(false,new Error('serveurs de bornes saturés'))}
+    },i*6000)));
+  });
 }
 function thin(pts,stepKm){const o=[pts[0]];let last=0;for(const p of pts){if(p[2]-last>=stepKm){o.push(p);last=p[2]}}o.push(pts[pts.length-1]);return o}
-async function stationsAlong(models){
+// Recherche par tronçons de 200 km (2 en parallèle) ; si la puissance mini ≥ 50 kW, seules les bornes rapides sont téléchargées.
+const FAST_NET='ionity|electra|fastned|tesla|allego|totalenergies|total energies|izivia|corri-door|powerdot|power dot|zunder|atlante|lidl|leclerc|vianeo|engie';
+async function stationsAlong(models,onProgress){
   const R=Math.max(500,Math.round((+P.detour||2)*1000));
-  const parts=models.map(m=>`nwr["amenity"="charging_station"](around:${R},${thin(m.pts,3).map(p=>p[0].toFixed(5)+','+p[1].toFixed(5)).join(',')});`).join('');
-  const j=await overpass(`[out:json][timeout:90];(${parts});out center tags;`);
-  return parseStations(j.elements);
+  const fastOnly=(+F.minPower||0)>=50;
+  const chunks=[];
+  for(const m of models){const t=thin(m.pts,4);for(let i=0;i<t.length;){let j=i;while(j<t.length-1&&t[j+1][2]-t[i][2]<=200)j++;chunks.push(t.slice(i,j+1));if(j===t.length-1)break;i=j}}
+  const filt=fastOnly?`(nwr.c[~"^socket:(type2_combo|chademo|tesla_supercharger)"~"."];nwr.c["network"~"${FAST_NET}",i];nwr.c["operator"~"${FAST_NET}",i];nwr.c["brand"~"${FAST_NET}",i];)`:'(nwr.c;)';
+  const all=[];let done=0,fails=0,next=0;
+  async function worker(){
+    while(next<chunks.length){
+      const c=chunks[next++];
+      const line=c.map(p=>p[0].toFixed(4)+','+p[1].toFixed(4)).join(',');
+      try{const j=await overpass(`[out:json][timeout:30];nwr["amenity"="charging_station"](around:${R},${line})->.c;${filt};out center tags;`);all.push(...j.elements)}
+      catch(e){fails++}
+      done++;onProgress?.(done,chunks.length);
+    }
+  }
+  await Promise.all([worker(),worker()]);
+  if(fails===chunks.length)throw new Error('serveurs de bornes saturés');
+  const st=parseStations(all);st.partial=fails>0;return st;
 }
 function parsePower(t){
   let mx=0;
@@ -780,13 +806,33 @@ $('#bGo').onclick=async()=>{
     if(mN&&Math.abs(mN.km-mT.km)<1&&Math.abs(mN.sec-mT.sec)<60)mN.same=true;
     if(P.mode==='auth'){loading(true,'Comparaison avec l’itinéraire classique…');await Promise.all([authCompare(mT,state.from,state.to,false),authCompare(mN,state.from,state.to,true)])}
     state.models={toll:mT,free:mN};
-    loading(true,'Recherche des bornes sur le trajet…');
-    try{state.raw=await stationsAlong([mT,mN].filter(Boolean))}catch(e){state.raw=[];toast('Bornes indisponibles pour le moment (serveur OSM saturé). Réessayez.',5000)}
-    replan();
-    $('#sheet').classList.remove('min');
+    state.raw=[];
+    const cap=+P.cap,reserve=cap*(+P.min)/100,E0=cap*(+P.soc0)/100;
+    const needCharge=[mT,mN].filter(Boolean).some(m=>E0-m.kwh<reserve);
+    state.stStatus=needCharge?'loading':(F.show?'loading':'none');
+    replan();loading(false);$('#sheet').classList.remove('min');
+    if(state.stStatus==='loading')loadStations();
   }catch(e){toast('Erreur : '+e.message,5000)}
   finally{loading(false)}
 };
+// Les bornes sont chargées en arrière-plan : l'itinéraire s'affiche tout de suite, puis les recharges sont ajoutées.
+let stReq=0;
+async function loadStations(){
+  const id=++stReq;state.stStatus='loading';renderResults();
+  try{
+    const raw=await stationsAlong([state.models.toll,state.models.free].filter(Boolean),(d,n)=>{if(id!==stReq)return;state.stProg=`${d}/${n}`;const el=$('#stBanner');if(el)el.innerHTML=stBannerHtml()});
+    if(id!==stReq)return;
+    state.raw=raw;state.stStatus=raw.partial?'partial':'ok';
+    if(nav.active){const p=plan(nav.m,Math.max(1,nav.realSoc??socAt(nav.p,nav.kwh||0)));nav.p=p;state.plans[state.sel]=p;drawRoutes()}else replan();
+  }catch(e){if(id!==stReq)return;state.stStatus='error';renderResults()}
+}
+function stBannerHtml(){
+  const st=state.stStatus;
+  if(st==='loading')return `<div class="spin" style="width:18px;height:18px;border-width:2px"></div><span>Recherche des bornes sur le trajet…${state.stProg?' '+state.stProg:''}</span>`;
+  if(st==='error')return `<span style="color:var(--orange)">⚠︎ Bornes indisponibles (serveurs saturés)</span><button class="mini" style="width:auto;padding:0 10px;font-size:14px;margin-left:auto" onclick="loadStations()">Réessayer</button>`;
+  if(st==='partial')return `<span style="color:var(--orange)">Bornes trouvées sur une partie du trajet seulement</span><button class="mini" style="width:auto;padding:0 10px;font-size:14px;margin-left:auto" onclick="loadStations()">Compléter</button>`;
+  return '';
+}
 function replan(){
   if(!state.models)return;
   const soc0=+P.soc0;
@@ -853,12 +899,14 @@ function card(k,title){
     <div class="rc-sub">${fmtKm(p.m.km)} · ${ns?ns+' recharge'+(ns>1?'s':'')+' ('+fmtDur(p.chargeSec)+')':'sans recharge'} · arrivée ${Math.max(0,Math.round(p.arrSoc))} %${p.m.same?' · identique au trajet autoroute':''}</div>
     ${trafLine(p.m)}
     <div class="rc-grid"><div><small>Électricité</small><b>${euro(p.elec)}</b></div><div><small>Péage${p.tollReal?'':' (est.)'}</small><b>${euro(p.tollCost)}</b></div><div><small>Total</small><b>${euro(p.total)}</b></div></div>
-    ${p.warn?`<div class="warn">⚠︎ ${esc(p.warn)}</div>`:''}
+    ${p.warn&&state.stStatus!=='loading'?`<div class="warn">⚠︎ ${esc(p.warn)}</div>`:''}
   </div>`;
 }
 function renderResults(){
   const pl=state.plans,cur=pl[state.sel];
-  let h='<div class="group-title" style="margin-left:4px">Itinéraires</div>'+card('toll','Par autoroute')+(pl.free?card('free','Sans péage'):'<div class="group-foot">Itinéraire sans péage indisponible.</div>');
+  state.stProg=state.stStatus==='loading'?state.stProg:'';
+  const bn=stBannerHtml();
+  let h=(bn?`<div class="group" id="stBanner" style="display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:14px">${bn}</div>`:'')+'<div class="group-title" style="margin-left:4px">Itinéraires</div>'+card('toll','Par autoroute')+(pl.free?card('free','Sans péage'):'<div class="group-foot">Itinéraire sans péage indisponible.</div>');
   h+=`<button class="btn green" id="bStart">Démarrer le guidage</button>`;
   h+=`<div class="group-title" style="margin-left:4px">Ouvrir dans (CarPlay / Android Auto)</div>
   <div class="ext">
@@ -1101,7 +1149,9 @@ async function reroute(lat,lon,forceSoc){
 
 /* ---------------- Profil / filtres (UI) ---------------- */
 function openModal(id){$('#'+id).classList.add('open')}
-document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{$('#'+b.dataset.close).classList.remove('open');save('er_profile',P);save('er_filters',F);replan()});
+let lastFast=(+F.minPower||0)>=50;
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{$('#'+b.dataset.close).classList.remove('open');save('er_profile',P);save('er_filters',F);
+  const fast=(+F.minPower||0)>=50;if(state.models&&fast!==lastFast&&!fast){lastFast=fast;replan();loadStations();return}lastFast=fast;replan()});
 $('#bProfile').onclick=()=>{fillProfile();openModal('mProfile')};
 $('#bFilters').onclick=()=>{fillFilters();openModal('mFilters')};
 $('#pCar').innerHTML=CARS.map((c,i)=>`<option value="${i}">${esc(c[0])}</option>`).join('');
