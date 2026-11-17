@@ -17,7 +17,7 @@ TRAFIC EN TEMPS RÉEL ET VÉHICULE AUTORISÉ (clé HERE)
  gagner plus de 10 min (réglable), voies bus/taxi en mode "Véhicule autorisé", prix réels des péages.
 
 Sources utilisées (gratuites, sans clé) :
-- Itinéraires : OSRM (serveur public OpenStreetMap)
+- Itinéraires : Valhalla (OpenStreetMap, voiture / taxi / bus), repli OSRM ; HERE si clé (trafic)
 - Bornes : OpenStreetMap via Overpass
 - Adresses : Base Adresse Nationale + Photon
 - Fond de carte : CARTO Voyager (clair) / Dark Matter (sombre)

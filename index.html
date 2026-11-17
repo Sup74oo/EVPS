@@ -231,7 +231,7 @@ html.dark .seg button.on{background:#636366}
     <div class="group">
       <div class="row"><label>Clé API HERE</label><input type="text" id="pHere" placeholder="trafic temps réel" style="width:58%" autocapitalize="off" autocorrect="off"></div>
     </div>
-    <div class="group-foot">Avec une clé HERE : trafic en direct, recalcul en route, voies réservées et prix réels des péages. Sans clé : itinéraires OpenStreetMap, sans trafic.</div>
+    <div class="group-foot">Avec une clé HERE : trafic en direct, recalcul en route, voies réservées et prix réels des péages. Sans clé : itinéraires OpenStreetMap (Valhalla), voies bus/taxi comprises, mais sans trafic ni prix exact des péages.</div>
     <div class="group-title">Véhicule autorisé</div>
     <div class="seg" id="segAuth"><button data-v="taxi">Voies bus-taxi</button><button data-v="bus">Toutes voies bus</button></div>
     <div class="group-foot">« Voies bus-taxi » garde des vitesses de voiture et ignore les bouchons sur les voies réservées. « Toutes voies bus » utilise aussi les voies réservées aux seuls bus, avec des vitesses de bus (plus prudentes).</div>
@@ -558,19 +558,54 @@ async function hereRoutes(a,b,noToll,alts=3,modeOv){
   }
   throw err;
 }
+/* ---- Valhalla (OpenStreetMap, sans clé) : voiture, taxi, bus ---- */
+function decodePoly6(str){
+  const out=[];let i=0,lat=0,lon=0;
+  while(i<str.length){
+    for(const k of [0,1]){let res=0,shift=0,b;do{b=str.charCodeAt(i++)-63;res+=(b&31)*Math.pow(2,shift);shift+=5}while(b>=32);const d=res%2?-(res+1)/2:res/2;if(k===0)lat+=d;else lon+=d}
+    out.push([lat/1e6,lon/1e6]);
+  }
+  return out;
+}
+const VTYPE={1:['depart'],2:['depart'],3:['depart'],4:['arrive'],5:['arrive'],6:['arrive'],7:['new name','straight'],8:['continue','straight'],9:['turn','slight right'],10:['turn','right'],11:['turn','sharp right'],12:['turn','uturn'],13:['turn','uturn'],14:['turn','sharp left'],15:['turn','left'],16:['turn','slight left'],17:['on ramp','straight'],18:['on ramp','slight right'],19:['on ramp','slight left'],20:['off ramp','slight right'],21:['off ramp','slight left'],22:['fork','straight'],23:['fork','slight right'],24:['fork','slight left'],25:['merge','straight'],26:['roundabout'],27:['exit roundabout'],37:['merge','slight right'],38:['merge','slight left']};
+function buildValhalla(trip,noToll,costing){
+  const leg=trip.legs[0],poly=decodePoly6(leg.shape),k=1+(+P.winter||0)/100;
+  const pts=[[poly[0][0],poly[0][1],0,0,0]],steps=[];let km=0,kwh=0,sec=0,tollKm=0,motorKm=0,urbanKm=0;
+  for(const mv of leg.maneuvers){
+    const a=mv.begin_shape_index,b=mv.end_shape_index,d=mv.length||0,du=mv.time||0,v=du>0?d/(du/3600):0;
+    const motor=!!mv.highway||v>=95,cons=(motor?+P.consHwy:+P.consNat)*k/100;
+    if(mv.toll)tollKm+=d;if(motor)motorKm+=d;if(!motor&&v>0&&v<40)urbanKm+=d;
+    let Lsum=0;const seg=[];for(let i=a;i<b;i++){const l=hav(poly[i][0],poly[i][1],poly[i+1][0],poly[i+1][1]);seg.push(l);Lsum+=l}
+    const t=VTYPE[mv.type]||['turn','straight'];
+    const st={maneuver:{type:t[0],modifier:t[1],exit:mv.roundabout_exit_count},_start:pts.length-1,_motor:motor,road:(mv.street_names||[])[0]||''};
+    for(let i=a;i<b;i++){const f=Lsum>0?seg[i-a]/Lsum:1/(b-a);km+=d*f;kwh+=d*cons*f;sec+=du*f;pts.push([poly[i+1][0],poly[i+1][1],km,kwh,sec])}
+    st._end=pts.length-1;st.text=(mv.instruction||'').replace(/\.$/,'')||instr({maneuver:st.maneuver,name:st.road});
+    steps.push(st);
+  }
+  return {engine:'valhalla',route:trip,steps,pts,km,kwh,sec,tollKm,motorKm,urbanKm,tollCost:null,delaySec:0,jams:[],noToll,hereMode:costing==='auto'?'car':costing,rebuild(){return buildValhalla(trip,noToll,costing)}};
+}
+async function valhallaRoutes(a,b,noToll,alts=2,costingOv){
+  const costing=costingOv||(P.mode==='auth'?(P.auth==='bus'?'bus':'taxi'):'auto');
+  const body={locations:[{lat:a.lat,lon:a.lon},{lat:b.lat,lon:b.lon}],costing,costing_options:{[costing]:{use_tolls:noToll?0:0.5}},directions_options:{units:'kilometers',language:'fr-FR'},alternates:alts};
+  const j=await fetchJSON('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(body)),{},40000);
+  if(!j.trip)throw new Error(j.error||'Valhalla : pas d’itinéraire');
+  return [j.trip,...(j.alternates||[]).map(x=>x.trip)].filter(Boolean).map(t=>buildValhalla(t,noToll,costing));
+}
 async function getRoutes(a,b,noToll,alts){
   if(P.here?.trim()){
     try{return await hereRoutes(a,b,noToll,alts)}
     catch(e){toast((P.mode==='auth'?'Voies réservées indisponibles : ':'')+'HERE ne répond pas ('+e.message+'). Itinéraire classique sans trafic.',6000)}
-  }else if(P.mode==='auth')toast('Le mode véhicule autorisé nécessite une clé HERE (Profil). Itinéraire classique.',6000);
+  }
+  try{return await valhallaRoutes(a,b,noToll,Math.min(alts??2,2))}
+  catch(e){toast((P.mode==='auth'?'Voies réservées indisponibles : ':'')+'serveur d’itinéraires saturé, repli sur OSRM.',5000)}
   const ms=await osrmRoutes(a,b,noToll);
   if(P.mode==='auth')ms.forEach(m=>m.authFailed=true);
   return ms;
 }
 // En mode véhicule autorisé : calcule aussi l'itinéraire classique pour mesurer le gain des voies réservées.
 async function authCompare(m,a,b,noToll){
-  if(!m||m.engine!=='here'||m.hereMode==='car')return;
-  try{const car=chooseRoute(await hereRoutes(a,b,noToll,1,'car'));m.authGain=car.sec-m.sec;m.authCarSec=car.sec}catch(e){m.authGain=null}
+  if(!m||!m.hereMode||m.hereMode==='car'||m.engine==='osrm')return;
+  try{const car=chooseRoute(m.engine==='here'?await hereRoutes(a,b,noToll,1,'car'):await valhallaRoutes(a,b,noToll,1,'auto'));m.authGain=car.sec-m.sec;m.authCarSec=car.sec}catch(e){m.authGain=null}
 }
 // Règle centres-villes : on contourne seulement si cela coûte moins que le seuil ; jamais si traverser fait gagner davantage.
 function chooseRoute(models){
@@ -793,7 +828,7 @@ function trafLine(m){
     if(m.authGain==null)bits.push(lbl);
     else if(m.authGain>=60)bits.push(`<span style="color:var(--green)">${lbl} : −${fmtDur(m.authGain)} vs classique</span>`);
     else if(m.authGain<=-60)bits.push(`${lbl} : +${fmtDur(-m.authGain)} vs classique (vitesses ${m.hereMode==='bus'?'bus':'réduites'})`);
-    else bits.push(`${lbl} : pas de gain sur ce trajet`);
+    else bits.push(`${lbl} : pas de gain sur ce trajet${m.engine!=='here'?' (sans trafic)':''}`);
   }
   if(m.notices?.length)bits.push('<span style="color:var(--orange)">⚠︎ '+esc(m.notices[0])+'</span>');
   if(m.cityInfo?.type==='bypass')bits.push(`Contourne le centre-ville${m.cityInfo.delta>=60?' (+'+fmtDur(m.cityInfo.delta)+')':''}`);
@@ -831,7 +866,7 @@ function renderResults(){
       ${Math.round(st.socIn)} % → ${Math.round(st.socOut)} % · ${Math.round(st.add)} kWh · ${fmtDur(st.chargeSec)}<br>
       <b style="color:var(--text)">${euro(st.cost)}</b> · ${st.price.toFixed(2).replace('.',',')} €/kWh (${st.src})</div></div></div>`).join('')+'</div>';
   }
-  h+=`<div class="group-foot" style="margin-top:6px">Électricité : ${euro(cur.chargeCost)} en recharge${P.homeOn?' + '+euro(cur.homeCost)+' de batterie de départ (tarif domicile)':''}. ${cur.tollReal?'Péage : tarif réel HERE (classe 1).':'Péage estimé à '+(+P.toll).toFixed(3).replace('.',',')+' €/km.'}${cur.m.engine==='osrm'?' Itinéraire sans trafic (ajoutez une clé HERE).':''} Énergie totale ≈ ${Math.round(cur.m.kwh)} kWh.</div>`;
+  h+=`<div class="group-foot" style="margin-top:6px">Électricité : ${euro(cur.chargeCost)} en recharge${P.homeOn?' + '+euro(cur.homeCost)+' de batterie de départ (tarif domicile)':''}. ${cur.tollReal?'Péage : tarif réel HERE (classe 1).':'Péage estimé à '+(+P.toll).toFixed(3).replace('.',',')+' €/km.'}${cur.m.engine!=='here'?' Itinéraire OpenStreetMap sans trafic (clé HERE facultative pour le trafic en direct).':''} Énergie totale ≈ ${Math.round(cur.m.kwh)} kWh.</div>`;
   $('#results').innerHTML=h;
   document.querySelectorAll('.rcard').forEach(el=>el.onclick=()=>selectRoute(el.dataset.k));
   document.querySelectorAll('.stop').forEach(el=>el.onclick=()=>{const st=cur.stops[+el.dataset.i];map.setView([st.s.lat,st.s.lon],14);if(innerWidth<760)$('#sheet').classList.add('min')});
@@ -1090,7 +1125,7 @@ function fillSegs(){
   document.querySelectorAll('#segAuth button').forEach(b=>b.classList.toggle('on',b.dataset.v===P.auth));
   document.querySelectorAll('#segCity button').forEach(b=>b.classList.toggle('on',b.dataset.v===P.city));
 }
-[['segMode','mode'],['segAuth','auth'],['segCity','city']].forEach(([id,k])=>document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{P[k]=b.dataset.v;fillSegs();save('er_profile',P);if(k==='mode'&&state.models&&!nav.active)$('#bGo').click();if(k==='mode'&&b.dataset.v==='auth'&&!P.here?.trim())toast('Ajoutez une clé HERE dans le Profil pour les voies réservées.',4500)}));
+[['segMode','mode'],['segAuth','auth'],['segCity','city']].forEach(([id,k])=>document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{P[k]=b.dataset.v;fillSegs();save('er_profile',P);if(k==='mode'&&state.models&&!nav.active)$('#bGo').click();if(k==='mode'&&b.dataset.v==='auth'&&!P.here?.trim())toast('Voies réservées via OpenStreetMap (sans trafic). Une clé HERE ajoute le trafic en direct.',5000)}));
 $('#pHere').addEventListener('input',e=>{P.here=e.target.value.trim()});
 fillSegs();
 function fillProfile(){
