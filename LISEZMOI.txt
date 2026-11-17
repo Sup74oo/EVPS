@@ -20,7 +20,7 @@ Sources utilisées (gratuites, sans clé) :
 - Itinéraires : Valhalla (OpenStreetMap, voiture / taxi / bus), repli OSRM ; HERE si clé (trafic)
 - Bornes : OpenStreetMap via Overpass
 - Adresses : Base Adresse Nationale + Photon
-- Fond de carte : CARTO Voyager (clair) / Dark Matter (sombre)
+- Fond de carte : OpenFreeMap Positron (clair) / Dark (sombre), sans clé ; repli tuiles OpenStreetMap
 
 CarPlay / Android Auto : les boutons "Plans", "Google Maps" et "Waze" envoient le trajet
 (avec les bornes en étapes) vers ces apps, qui s'affichent sur l'écran de la voiture.

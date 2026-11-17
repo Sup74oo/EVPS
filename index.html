@@ -14,6 +14,9 @@
 <title>ÉlecRoute</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@5.24.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
 <style>
 :root{
   --bg:#f2f2f7; --card:#ffffff; --card2:#f9f9fb; --text:#1d1d1f; --text2:#6e6e73; --text3:#aeaeb2;
@@ -31,6 +34,7 @@ html.dark{
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
 #map{position:fixed;inset:0;z-index:0;background:var(--bg)}
+.osm-dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}
 .leaflet-control-attribution{font-size:9px!important;background:var(--glass)!important;color:var(--text2)!important}
 .leaflet-control-attribution a{color:var(--text2)!important}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--card);color:var(--text);border-radius:14px;box-shadow:var(--shadow)}
@@ -394,9 +398,11 @@ function applyTheme(){
   const d=isDark();document.documentElement.classList.toggle('dark',d);
   $('#themeColor').setAttribute('content',d?'#000000':'#f2f2f7');
   if(tiles)map.removeLayer(tiles);
-  tiles=L.tileLayer(d?'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png':'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    {subdomains:'abcd',maxZoom:20,attribution:'© OpenStreetMap · © CARTO'}).addTo(map);
-  tiles.bringToBack();
+  // Fond de carte sans clé : OpenFreeMap (vectoriel, Positron / Dark) ; repli : tuiles OpenStreetMap.
+  let ok=false;
+  try{if(L.maplibreGL&&window.maplibregl&&maplibregl.supported?.()!==false){tiles=L.maplibreGL({style:'https://tiles.openfreemap.org/styles/'+(d?'dark':'positron'),attribution:'© <a href="https://openfreemap.org">OpenFreeMap</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);ok=true}}catch(e){ok=false}
+  if(!ok)tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,className:d?'osm-dark':'',attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+  tiles.bringToBack?.();
   document.querySelectorAll('#segTheme button').forEach(b=>b.classList.toggle('on',b.dataset.v===P.theme));
   if(state.plans)drawRoutes();
 }
@@ -746,14 +752,15 @@ async function liveFetch(){
 function ago(t){if(!t)return '';const m=Math.round((Date.now()-new Date(t))/60000);if(isNaN(m))return '';return m<1?'à l’instant':m<60?'il y a '+m+' min':m<1440?'il y a '+Math.round(m/60)+' h':'il y a '+Math.round(m/1440)+' j'}
 function liveLabel(v){return `${esc(v.name)} · <b>${Math.round(v.soc)} %</b>${v.range?' · '+Math.round(v.range)+' km':''}${v.charging?' · ⚡ en charge':''}<span style="color:var(--text2)">${v.updated?' · '+ago(v.updated):''}</span>`}
 async function liveRefresh(quiet){
-  if(P.live.prov==='none'){$('#liveRow').classList.add('hidden');return null}
+  const L_=P.live,configured=L_.prov==='enode'?!!L_.worker:L_.prov==='ha'?!!(L_.ha&&L_.haSoc):false;
+  if(!configured){$('#liveRow').classList.add('hidden');return null}
   $('#liveRow').classList.remove('hidden');
   try{
     const v=await liveFetch();state.live=v;
-    $('#liveTxt').innerHTML=liveLabel(v);
+    $('#liveTxt').innerHTML=liveLabel(v);$('#liveRow .bdot').style.background='var(--green)';
     if(v.soc!=null&&!nav.active){P.soc0=Math.round(v.soc);$('#socRange').value=P.soc0;$('#socVal').textContent=P.soc0+' % (réel)'}
     return v;
-  }catch(e){state.live=null;$('#liveTxt').innerHTML='<span style="color:var(--orange)">Véhicule : '+esc(e.message)+'</span>';if(!quiet)toast('Véhicule connecté : '+e.message,5000);return null}
+  }catch(e){state.live=null;$('#liveRow .bdot').style.background='var(--orange)';$('#liveTxt').innerHTML='<span style="color:var(--orange)">Véhicule : '+esc(e.message)+'</span>';if(!quiet)toast('Véhicule connecté : '+e.message,5000);return null}
 }
 $('#bLiveRef').onclick=()=>liveRefresh(false);
 
